@@ -1,27 +1,26 @@
 ﻿DIAPASÓN · La agenda inteligente para profesores de música
 ============================================================
 
-CÓMO ABRIRLO EN EL PC (Windows)
+EN EL PC (Windows)
 1. Descomprime esta carpeta donde quieras (por ejemplo, en Documentos).
-2. Haz doble clic en «Abrir en el PC.bat».
-3. Se abre una ventana negra y Diapasón aparece en tu navegador
-   (dirección http://localhost:8440). Deja la ventana abierta mientras lo uses;
-   al cerrarla, Diapasón se detiene.
-
-   No necesita instalar nada ni conexión a Internet.
-   Si Windows muestra un aviso de SmartScreen, pulsa «Más información» → «Ejecutar de todas formas».
+2. Haz doble clic en «Abrir en el PC.bat» (o directamente en «Diapason.html»).
+   Se abre en Chrome o Edge. No necesita instalar nada ni conexión a Internet.
 
 TUS DATOS
-· Se guardan en el navegador de este PC. Usa siempre el mismo navegador
-  (Edge o Chrome) y la misma dirección para verlos.
+· Se guardan en el navegador de este PC. Usa siempre el mismo navegador.
 · Haz copias en Ajustes → Copia de seguridad → «Crear copia .zip».
 
-PASAR LOS DATOS AL iPAD O AL MÓVIL (Y AL REVÉS)
-1. En el dispositivo donde has trabajado: Ajustes → «Crear copia .zip»
-   (en iPad o móvil, «Enviar copia…» permite usar AirDrop, correo o Drive).
-2. Lleva el archivo Diapason-copia-….zip al otro dispositivo.
-3. Allí: Ajustes → «Restaurar una copia» y elige el archivo.
+EN EL MÓVIL ANDROID
+· Instala «Diapason.apk» (Releases › ultima, en GitHub). Android pedirá permitir
+  la instalación de apps de origen desconocido. Las versiones nuevas se instalan
+  encima sin perder los datos.
 
-EN EL iPAD
-· Abre la dirección web de Diapasón en Safari y pulsa Compartir → «Añadir a pantalla
-  de inicio». Se abrirá como una app, a pantalla completa.
+EN EL iPHONE O iPAD
+· Abre la dirección web de Diapasón una vez en Safari y pulsa Compartir →
+  «Añadir a pantalla de inicio». Después funciona sin conexión, como una app.
+
+PASAR LOS DATOS ENTRE DISPOSITIVOS
+1. Donde has trabajado: Ajustes → «Crear copia .zip» (en Android se abre el menú
+   Compartir; en iPhone/iPad, «Enviar copia…»).
+2. Lleva el archivo Diapason-copia-….zip al otro dispositivo.
+3. Allí: Ajustes → «Restaurar una copia».

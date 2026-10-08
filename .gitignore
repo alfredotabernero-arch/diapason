@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+.vscode/*
+!.vscode/extensions.json
+release
+build-pc
+Diapason.html
+dev-dist

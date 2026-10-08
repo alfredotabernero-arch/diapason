@@ -4,7 +4,15 @@
 
 **La agenda inteligente para profesores de música.**
 
-Aplicación web para profesores de música particulares, conservatorios y escuelas municipales. Funciona en **PC, iPad y móvil** con el mismo código: en pantallas grandes muestra un menú lateral y vistas a varias columnas; en el móvil, una barra de navegación inferior.
+Aplicación **local** para profesores de música particulares, conservatorios y escuelas municipales, como Atril y Maestro: funciona sin servidor ni cuentas y los datos se quedan en el dispositivo.
+
+| Dispositivo | Cómo se usa |
+|---|---|
+| **PC con Windows** | Doble clic en `Abrir en el PC.bat` (abre `Diapason.html`). Sin instalar nada y **sin Internet**. |
+| **Android** | App instalable `Diapason.apk` (Capacitor 7), compilada por GitHub. |
+| **iPhone / iPad** | Se abre una vez la web en Safari y se añade a la pantalla de inicio; desde entonces funciona **sin conexión**. |
+
+El mismo código sirve para todos: en pantallas grandes muestra un menú lateral y vistas a varias columnas; en el móvil, una barra de navegación inferior.
 
 Cada copia de Diapasón es de **un profesor y una asignatura** (Violonchelo, Piano, Lenguaje Musical…), que se elige en Ajustes. En asignaturas como Lenguaje Musical, cada alumno conserva además su especialidad instrumental y se pueden organizar **clases de grupo**.
 
@@ -41,9 +49,9 @@ Diapasón guarda los datos en el propio dispositivo; no hay servidor ni cuentas,
 2. Lleva el `.zip` al otro dispositivo.
 3. **Ajustes → Restaurar una copia**. Sustituye los datos por los de la copia, incluidos los archivos adjuntos.
 
-### En el iPad
+### En el iPhone o el iPad
 
-No hace falta otra versión. Abre Diapasón en Safari (por ejemplo, desde GitHub Pages) y pulsa **Compartir → Añadir a pantalla de inicio**: queda como una app a pantalla completa con su icono.
+Apple solo permite instalar apps nativas desde la App Store o TestFlight, lo que exige una cuenta de desarrollador de pago y un Mac. Por eso en iPhone/iPad Diapasón se instala como web: se abre una vez `https://TU_USUARIO.github.io/diapason/` en **Safari** y se pulsa **Compartir → Añadir a pantalla de inicio**. Queda como una app a pantalla completa y, gracias a su *service worker*, **funciona sin conexión**; solo necesita Internet para recibir las versiones nuevas. Los datos se guardan en el propio dispositivo.
 
 ## 🧱 Tecnología
 
@@ -52,25 +60,39 @@ No hace falta otra versión. Abre Diapasón en Safari (por ejemplo, desde GitHub
 - [React Router 6](https://reactrouter.com) (`HashRouter`, compatible con GitHub Pages)
 - [Recharts](https://recharts.org) (gráficos interactivos)
 - [Lucide](https://lucide.dev) (iconos) y [JSZip](https://stuk.github.io/jszip/) (copias .zip)
+- [Capacitor 7](https://capacitorjs.com) (app Android, con los plugins Filesystem y Share) y [vite-plugin-pwa](https://vite-pwa-org.netlify.app) (web sin conexión)
+- Tipografías *Instrument Serif* e *Instrument Sans* incluidas en la app ([Fontsource](https://fontsource.org)): no se descarga nada de Internet.
 - Persistencia local: `localStorage` para los datos e `IndexedDB` para los archivos adjuntos. **No necesita servidor ni base de datos.**
 
-## 🖥️ Abrir en el PC (doble clic)
+## 🖥️ PC con Windows
 
-Igual que en Atril y Maestro: doble clic en **`Abrir en el PC.bat`**. Arranca un pequeño servidor de PowerShell (incluido en Windows) en `http://localhost:8440` y abre el navegador. Mientras la ventana negra esté abierta, Diapasón funciona; al cerrarla, se detiene.
+Como en Atril: doble clic en **`Abrir en el PC.bat`**, que abre **`Diapason.html`** en el navegador (Chrome o Edge). Es un único archivo con todo dentro (código, estilos, tipografías e icono), así que no necesita servidor ni conexión.
 
-- **En la carpeta del código fuente** (por ejemplo `C:\Proyectos\DIAPASON`): si no hay versión compilada o has cambiado el código, el `.bat` ejecuta solo `npm install` (la primera vez) y `npm run build`. Necesita Node.js.
-- **En el paquete para el profesor** (`Diapason-PC.zip`): ya va compilado, así que no necesita Node, npm ni Internet. Funciona también detrás de un proxy corporativo.
+- **Paquete para el profesor** (`Diapason-PC.zip`, en Releases › *ultima*): `Diapason.html` + `Abrir en el PC.bat` + `LEEME.txt`. Se descomprime y listo.
+- **Carpeta del código fuente**: si falta `Diapason.html` o has cambiado el código, el `.bat` lo compila solo (`npm run build:pc`, necesita Node.js) y después lo abre.
 
-Usa siempre el mismo navegador en el PC: los datos se guardan en él.
+Los datos se guardan en el navegador del PC: usa siempre el mismo navegador.
+
+## 🤖 Android
+
+App `es.diapason.agenda` hecha con **Capacitor 7** (proyecto en `android/`). GitHub la compila en cada subida y publica **`Diapason.apk`** en Releases › *ultima*. Se firma con una clave de pruebas fija (`android/firma/`), de modo que cada versión se instala encima de la anterior sin perder datos.
+
+En Android, «Crear copia .zip», «Excel» y abrir un adjunto usan el menú **Compartir** (Drive, correo, WhatsApp, Descargas, otras apps). Imprimir no está disponible en la app: usa el Excel o imprime desde el PC.
+
+Para compilarlo en tu PC (opcional): `npm run android` y abre la carpeta `android/` con Android Studio.
 
 ## ⚙️ Compilación automática en GitHub
 
-Cada vez que subes cambios a `main`, GitHub Actions (`.github/workflows/deploy.yml`):
+Cada vez que se suben cambios a `main`, GitHub Actions (`.github/workflows/deploy.yml`) compila todo sin necesitar nada en tu PC:
 
-1. Compila la aplicación (no necesitas npm en tu PC para publicar).
-2. Publica la web en **GitHub Pages**: `https://TU_USUARIO.github.io/diapason/`.
-3. Crea **`Diapason-PC.zip`** y lo deja en **Releases → «Diapasón para PC»**, con un enlace fijo:
-   `https://github.com/TU_USUARIO/diapason/releases/download/pc/Diapason-PC.zip`
+1. **`Diapason.apk`** (Android).
+2. **`Diapason-PC.zip`** y **`Diapason.html`** (PC).
+3. La **web** en GitHub Pages (iPhone/iPad), que funciona sin conexión después de la primera visita.
+
+El APK y el paquete para PC quedan en **Releases › «ultima»**, con enlaces fijos:
+
+- `https://github.com/TU_USUARIO/diapason/releases/download/ultima/Diapason.apk`
+- `https://github.com/TU_USUARIO/diapason/releases/download/ultima/Diapason-PC.zip`
 
 ## 🚀 Instalación para desarrollo
 
@@ -95,21 +117,26 @@ y abre en el teléfono la dirección `Network:` que muestra la consola.
 |---|---|
 | `npm run build` | Genera la versión de producción en `dist/` |
 | `npm run preview` | Sirve localmente la versión de producción |
-| `npm run paquete-pc` | Compila y crea `release/Diapason-PC.zip` en tu PC (GitHub ya lo hace solo) |
+| `npm run build:pc` | Crea `Diapason.html` (un solo archivo para el PC) |
+| `npm run paquete-pc` | Crea `release/Diapason-PC.zip` (GitHub ya lo hace solo) |
+| `npm run android` | Compila la web y la copia al proyecto Android (`npx cap sync android`) |
 
 ## 📁 Estructura de carpetas
 
 ```
 diapason/
 ├── .github/workflows/deploy.yml   # Publicación automática en GitHub Pages
-├── Abrir en el PC.bat             # Doble clic: abre Diapasón en el navegador (sin npm)
-├── pc/                            # servidor-diapason.ps1 y LEEME.txt del paquete para el PC
+├── Abrir en el PC.bat             # Doble clic: abre Diapason.html (y lo compila si hace falta)
+├── android/                       # Proyecto Android (Capacitor 7), icono, pantalla de arranque y firma fija
+├── capacitor.config.json
+├── pc/                            # compilar-si-hace-falta.ps1 y LEEME.txt del paquete para el PC
 ├── public/
 │   ├── favicon.svg
 │   ├── manifest.webmanifest       # Instalable en el móvil como app
 │   └── brand/                     # Logotipo, versión negativa, monocromo, marca e iconos
 ├── scripts/
 │   ├── brand/                     # Generador del logotipo (ver su README)
+│   ├── html-unico.mjs             # Convierte la compilación en un único Diapason.html
 │   └── paquete-pc.mjs             # Crea release/Diapason-PC.zip
 ├── index.html
 ├── package.json
@@ -133,6 +160,7 @@ diapason/
     │   ├── backup.js              # Copia de seguridad .zip
     │   ├── courses.js             # Curso académico, trimestres y nota final
     │   ├── csv.js                 # Exportación a Excel (CSV)
+    │   ├── platform.js            # PC / web / Android: descargar o compartir archivos
     │   └── navigation.js          # Navegación "volver" segura
     ├── components/
     │   ├── brand/                 # Logo.jsx (logotipo vectorial), Splash.jsx, logoData.js

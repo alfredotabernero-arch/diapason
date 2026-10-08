@@ -13,6 +13,7 @@ import { GRADE_ABBR, REPERTOIRE_TYPES, TERMS, attended, gradeLabel, gradeStyle, 
 import { courseLabel, courseOf, courseRanges, finalGrade, proposedFinal, shiftCourse } from '../utils/courses.js';
 import { WEEKDAYS, addDays, endTime, formatFull, formatShort, formatHours, isoWeekday, monthLabel, startOfMonth, addMonths, todayISO } from '../utils/dates.js';
 import { downloadCSV } from '../utils/csv.js';
+import { isNative } from '../utils/platform.js';
 import { byId, fullName, sortTasks, studentAssignments } from '../utils/selectors.js';
 
 const LISTS = [
@@ -63,7 +64,7 @@ function Toolbar({ children, onCSV }) {
   return (
     <div className="no-print mb-3 flex flex-wrap items-center gap-2">
       <div className="flex flex-1 flex-wrap items-center gap-2">{children}</div>
-      <button className="btn-secondary !py-2" onClick={() => window.print()} title="Imprimir o guardar como PDF"><Printer size={16} /> Imprimir / PDF</button>
+      {!isNative() && <button className="btn-secondary !py-2" onClick={() => window.print()} title="Imprimir o guardar como PDF"><Printer size={16} /> Imprimir / PDF</button>}
       <button className="btn-secondary !py-2" onClick={onCSV} title="Descargar para Excel"><FileSpreadsheet size={16} /> Excel</button>
     </div>
   );

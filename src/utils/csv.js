@@ -1,5 +1,5 @@
 // Exportación a CSV compatible con Excel en español (separador «;» y BOM UTF-8)
-import { downloadBlob } from './backup.js';
+import { deliverFile } from './platform.js';
 
 export function toCSV(headers, rows) {
   const esc = (v) => {
@@ -11,5 +11,5 @@ export function toCSV(headers, rows) {
 
 export function downloadCSV(name, headers, rows) {
   const blob = new Blob(['﻿' + toCSV(headers, rows)], { type: 'text/csv;charset=utf-8' });
-  downloadBlob(blob, name.endsWith('.csv') ? name : `${name}.csv`);
+  return deliverFile(blob, name.endsWith('.csv') ? name : `${name}.csv`, 'Listado de Diapasón');
 }

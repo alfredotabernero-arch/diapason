@@ -1,7 +1,10 @@
-name: Compilar y publicar Diapasón
+name: Compilar Diapasón
 
-# En cada subida a main: compila la web, la publica en GitHub Pages
-# y genera «Diapason-PC.zip» (app + Abrir en el PC.bat) para descargar.
+# En cada subida a main GitHub compila todo, sin necesitar nada en el PC:
+#  · Diapason.apk          → app Android (firma fija: se instala encima sin perder datos)
+#  · Diapason-PC.zip       → Diapason.html + «Abrir en el PC.bat» (se abre con doble clic, sin Internet)
+#  · Web en GitHub Pages   → para iPhone/iPad: se añade a la pantalla de inicio y funciona sin conexión
+# El APK y el paquete para PC se publican en Releases › «ultima».
 on:
   push:
     branches: [main]
@@ -13,11 +16,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: compilar
   cancel-in-progress: true
 
 jobs:
-  build:
+  web-y-pc:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,29 +29,75 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Compilar y crear el paquete para PC
+      - name: Web (sin conexión tras la primera visita)
+        run: npm run build
+      - name: Paquete para PC (un solo Diapason.html)
         run: npm run paquete-pc
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-      - name: Paquete para PC (descargable desde esta ejecución)
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Diapason-PC
-          path: release/Diapason-PC.zip
-      - name: Publicar el paquete en Releases («Diapasón para PC»)
+          name: pc
+          path: |
+            release/Diapason-PC.zip
+            Diapason.html
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Compilar la web y copiarla al proyecto Android
+        run: |
+          npm run build
+          npx cap sync android
+      - name: Compilar el APK
+        working-directory: android
+        run: |
+          export DIAPASON_VERSION=$(node -p "require('../package.json').version")
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk ../Diapason.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Diapason.apk
+
+  publicar:
+    needs: [web-y-pc, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: salida
+          merge-multiple: true
+      - name: Publicar en Releases › ultima
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          ls -la salida salida/release || true
           gh release delete pc --yes --cleanup-tag || true
-          gh release create pc release/Diapason-PC.zip \
-            --title "Diapasón para PC · versión $VERSION" \
-            --notes "Descarga Diapason-PC.zip, descomprímelo y haz doble clic en «Abrir en el PC.bat». No necesita instalar nada." \
-            --target "$GITHUB_SHA"
+          gh release delete ultima --yes --cleanup-tag || true
+          gh release create ultima salida/Diapason.apk salida/release/Diapason-PC.zip salida/Diapason.html \
+            --title "Diapasón $VERSION" \
+            --target "$GITHUB_SHA" \
+            --notes "**Android:** descarga e instala Diapason.apk (se instala encima de la versión anterior sin perder datos).
+          **PC (Windows):** descarga Diapason-PC.zip, descomprímelo y haz doble clic en «Abrir en el PC.bat». Funciona sin Internet.
+          **iPhone / iPad:** abre https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ en Safari y elige Compartir → Añadir a pantalla de inicio."
 
-  deploy:
-    needs: build
+  web:
+    needs: web-y-pc
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -22,7 +22,7 @@ export default function MaterialList({ materials, showOwner = true }) {
   const open = async (m) => {
     if (m.source === 'file') {
       try {
-        await openFile(m.id);
+        await openFile(m.id, m.fileName || m.title);
       } catch (e) {
         actions.notify(e.message);
       }

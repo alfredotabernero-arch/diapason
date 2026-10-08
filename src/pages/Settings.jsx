@@ -68,11 +68,12 @@ export default function Settings() {
         if (ok === 'cancel') return;
         if (!ok) downloadBlob(blob, name);
       } else {
-        downloadBlob(blob, name);
+        await downloadBlob(blob, name);
       }
       actions.markBackup();
       actions.notify(missing ? `Copia creada (${missing} adjuntos no encontrados)` : 'Copia de seguridad creada');
     } catch (e) {
+      if (/cancel/i.test(e?.message || '')) return; // menú Compartir cerrado sin elegir
       setError(`No se pudo crear la copia: ${e.message}`);
     } finally {
       setBusy('');
@@ -180,7 +181,7 @@ export default function Settings() {
             <details className="rounded-xl bg-ink-50/60 px-3 py-2 text-sm text-ink-600">
               <summary className="cursor-pointer font-semibold text-ink-700">Pasar los datos del PC al iPad o al móvil (y al revés)</summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5">
-                <li>En el dispositivo donde has trabajado, pulsa <b>Crear copia .zip</b> (en iPad o móvil, <b>Enviar copia…</b> permite usar AirDrop, correo o Drive).</li>
+                <li>En el dispositivo donde has trabajado, pulsa <b>Crear copia .zip</b>. En Android se abre el menú Compartir (Drive, correo, WhatsApp, Descargas…); en iPhone o iPad, <b>Enviar copia…</b> permite usar AirDrop, correo o Drive.</li>
                 <li>Lleva el archivo <i>Diapason-copia-….zip</i> al otro dispositivo.</li>
                 <li>Allí, abre Ajustes → <b>Restaurar una copia</b> y elige el archivo.</li>
               </ol>

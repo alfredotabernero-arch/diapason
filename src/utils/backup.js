@@ -4,6 +4,7 @@
 import JSZip from 'jszip';
 import { getFile, saveFile } from './files.js';
 import { todayISO } from './dates.js';
+import { deliverFile, isNative } from './platform.js';
 
 const DATA_FILE = 'diapason-datos.json';
 
@@ -57,15 +58,9 @@ export async function restoreAttachments(attachments, materials) {
   return restored;
 }
 
+/** Descarga en el PC; en Android abre el menú Compartir */
 export function downloadBlob(blob, name) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return deliverFile(blob, name, 'Copia de Diapasón');
 }
 
 /** En iPad y móvil permite enviar la copia por AirDrop, correo, Drive… */
@@ -79,6 +74,7 @@ export async function shareBlob(blob, name) {
 }
 
 export const canShareFiles = () => {
+  if (isNative()) return false; // en Android «Crear copia» ya abre el menú Compartir
   try {
     return !!navigator.canShare?.({ files: [new File([''], 'x.zip', { type: 'application/zip' })] });
   } catch {
