@@ -1,0 +1,58 @@
+name: Compilar y publicar Diapasón
+
+# En cada subida a main: compila la web, la publica en GitHub Pages
+# y genera «Diapason-PC.zip» (app + Abrir en el PC.bat) para descargar.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Compilar y crear el paquete para PC
+        run: npm run paquete-pc
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Paquete para PC (descargable desde esta ejecución)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Diapason-PC
+          path: release/Diapason-PC.zip
+      - name: Publicar el paquete en Releases («Diapasón para PC»)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          gh release delete pc --yes --cleanup-tag || true
+          gh release create pc release/Diapason-PC.zip \
+            --title "Diapasón para PC · versión $VERSION" \
+            --notes "Descarga Diapason-PC.zip, descomprímelo y haz doble clic en «Abrir en el PC.bat». No necesita instalar nada." \
+            --target "$GITHUB_SHA"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
