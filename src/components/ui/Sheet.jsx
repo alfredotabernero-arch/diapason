@@ -1,9 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { pushBackHandler } from '../../utils/backStack.js';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /** Panel modal: hoja inferior en móvil, diálogo centrado en pantallas grandes */
 export default function Sheet({ open, onClose, title, children, footer }) {
+  // El botón «atrás» de Android cierra primero la ventana abierta más reciente
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    return pushBackHandler(() => closeRef.current?.());
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === 'Escape' && onClose?.();

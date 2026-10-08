@@ -1,5 +1,8 @@
 import { Link, NavLink } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import Logo from '../brand/Logo.jsx';
+import { isNative } from '../../utils/platform.js';
+import { requestExit } from '../../utils/backStack.js';
 import { useStore } from '../../store/StoreContext.jsx';
 import { MAIN_NAV, SECONDARY_NAV } from './navItems.js';
 import { instrumentStyle } from '../../utils/constants.js';
@@ -43,6 +46,11 @@ export default function Sidebar() {
           {lastBackup ? `Última copia: ${backupAge.toLowerCase()}` : 'Sin copia de seguridad'}
         </p>
       </Link>
+      {isNative() && (
+        <button onClick={requestExit} className="mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-500 hover:bg-white/60 hover:text-ink-800 transition">
+          <LogOut size={19} /> Salir de Diapasón
+        </button>
+      )}
     </aside>
   );
 }

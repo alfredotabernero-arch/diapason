@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isNative } from '../utils/platform.js';
+import { requestExit } from '../utils/backStack.js';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarCheck, ChevronRight, ClipboardPen, Clock, History, ListTodo, Music2, Settings, ShieldAlert, Users } from 'lucide-react';
+import { CalendarCheck, ChevronRight, ClipboardPen, Clock, History, ListTodo, LogOut, Music2, Settings, ShieldAlert, Users } from 'lucide-react';
 import Logo from '../components/brand/Logo.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
 import AppointmentCard from '../components/agenda/AppointmentCard.jsx';
@@ -66,9 +68,16 @@ export default function Dashboard() {
           <Link to="/ajustes" className="fork-vibrate-hover block" aria-label="Diapasón · Acerca de">
             <Logo vibrate className="h-[84px] w-auto" />
           </Link>
-          <Link to="/ajustes" className="btn-ghost !p-2 mb-1" aria-label="Ajustes">
-            <Settings size={21} />
-          </Link>
+          <div className="mb-1 flex items-center gap-1">
+            <Link to="/ajustes" className="btn-ghost !p-2" aria-label="Ajustes">
+              <Settings size={21} />
+            </Link>
+            {isNative() && (
+              <button onClick={requestExit} className="btn-ghost !p-2" aria-label="Salir de Diapasón" title="Salir">
+                <LogOut size={21} />
+              </button>
+            )}
+          </div>
         </div>
         <p className="mt-4 md:mt-0 text-xs font-semibold uppercase tracking-[0.14em] text-brass-500">{formatLong(today)} · {subject}</p>
         <h1 className="font-display text-[1.9rem] md:text-[2.4rem] leading-tight">{greeting()}, {firstName}</h1>

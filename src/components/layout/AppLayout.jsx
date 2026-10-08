@@ -4,6 +4,7 @@ import BottomNav from './BottomNav.jsx';
 import Sidebar from './Sidebar.jsx';
 import Toast from '../ui/Toast.jsx';
 import Splash from '../brand/Splash.jsx';
+import AndroidBack from './AndroidBack.jsx';
 
 export default function AppLayout() {
   const location = useLocation();
@@ -20,6 +21,7 @@ export default function AppLayout() {
       <BottomNav />
       <Toast />
       <Splash />
+      <AndroidBack />
     </div>
   );
 }

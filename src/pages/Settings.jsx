@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Download, FolderInput, RotateCcw, Send, ShieldCheck, Trash2 } from 'lucide-react';
+import { Download, FolderInput, LogOut, RotateCcw, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Field from '../components/ui/Field.jsx';
 import Sheet, { ConfirmDialog } from '../components/ui/Sheet.jsx';
 import Logo from '../components/brand/Logo.jsx';
 import { APP_CREDIT, APP_VERSION } from '../config.js';
+import { isNative } from '../utils/platform.js';
+import { requestExit } from '../utils/backStack.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { DEMO_SUBJECTS, SUBJECT_GROUPS, isInstrumentSubject } from '../utils/constants.js';
 import { DEFAULT_TERMS, courseLabel, courseOf, courseRanges } from '../utils/courses.js';
@@ -219,6 +221,12 @@ export default function Settings() {
               </p>
             </div>
           </section>
+
+          {isNative() && (
+            <button className="btn-secondary w-full" onClick={requestExit}>
+              <LogOut size={18} /> Salir de Diapasón
+            </button>
+          )}
         </div>
       </div>
 
