@@ -165,12 +165,12 @@ export default function StudentForm() {
           </div>
           <div className="space-y-2">
             {form.schedule.map((s, i) => (
-              <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,6.5rem)_minmax(0,5rem)_auto] items-center gap-2 animate-fade-up">
-                <select className="input !py-2" value={s.weekday} onChange={(e) => setSlot(i, 'weekday', Number(e.target.value))} aria-label="Día">
+              <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,5.5rem)_minmax(0,4.75rem)_auto] items-center gap-2 animate-fade-up">
+                <select className="input !py-2 !px-2 !text-sm" value={s.weekday} onChange={(e) => setSlot(i, 'weekday', Number(e.target.value))} aria-label="Día">
                   {WEEKDAYS.map((w, k) => <option key={w} value={k + 1}>{w}</option>)}
                 </select>
-                <input type="time" className="input !py-2 !px-2" value={s.time} onChange={(e) => setSlot(i, 'time', e.target.value)} aria-label="Hora" step="300" />
-                <select className="input !py-2 !px-2" value={s.duration} onChange={(e) => setSlot(i, 'duration', Number(e.target.value))} aria-label="Duración">
+                <input type="time" className="input !py-2 !px-2 !text-sm" value={s.time} onChange={(e) => setSlot(i, 'time', e.target.value)} aria-label="Hora" step="300" />
+                <select className="input !py-2 !px-2 !text-sm" value={s.duration} onChange={(e) => setSlot(i, 'duration', Number(e.target.value))} aria-label="Duración">
                   {[30, 45, 60, 75, 90, 120].map((d) => <option key={d} value={d}>{d}′</option>)}
                 </select>
                 <button type="button" className="p-2 text-ink-300 hover:text-rose-600" onClick={() => setForm((f) => ({ ...f, schedule: f.schedule.filter((_, j) => j !== i) }))} aria-label="Quitar">

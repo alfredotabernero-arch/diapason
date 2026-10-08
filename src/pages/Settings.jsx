@@ -145,8 +145,8 @@ export default function Settings() {
               <p className="text-xs text-ink-400">{courseLabel(course)}. Las fechas se aplican cada curso (septiembre a junio) y sirven para las notas y los listados de asistencia.</p>
             </div>
             {['t1', 't2', 't3'].map((k, i) => (
-              <div key={k} className="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-2">
-                <span className="pb-3 text-sm font-semibold text-ink-700">{i + 1}.{i === 1 ? 'º' : 'er'} trim.</span>
+              <div key={k} className="grid grid-cols-2 items-end gap-x-2 gap-y-1 sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)]">
+                <span className="col-span-2 text-sm font-semibold text-ink-700 sm:col-span-1 sm:pb-3">{i + 1}.{i === 1 ? 'º' : 'er'} trim.</span>
                 <Field label="Desde"><input id={`${k}-from`} type="date" className="input !px-2" value={ranges[k].from} onChange={setTerm(k, 'from')} /></Field>
                 <Field label="Hasta"><input id={`${k}-to`} type="date" className="input !px-2" value={ranges[k].to} onChange={setTerm(k, 'to')} /></Field>
               </div>

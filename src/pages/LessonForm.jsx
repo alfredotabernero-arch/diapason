@@ -173,9 +173,9 @@ export default function LessonForm() {
                 </select>
               </Field>
             )}
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,6.5rem)_minmax(0,5rem)] gap-2">
-              <Field label="Fecha"><input type="date" className="input" value={form.date} onChange={set('date')} /></Field>
-              <Field label="Hora"><input type="time" className="input !px-2" value={form.time} onChange={set('time')} /></Field>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,5.5rem)_minmax(0,4.5rem)] gap-2">
+              <Field label="Fecha"><input type="date" className="input !px-2 !text-sm" value={form.date} onChange={set('date')} /></Field>
+              <Field label="Hora"><input type="time" className="input !px-2 !text-sm" value={form.time} onChange={set('time')} /></Field>
               <Field label="Min">
                 <select className="input !px-2" value={form.duration} onChange={set('duration')}>
                   {DURATIONS.map((d) => <option key={d} value={d}>{d}</option>)}
