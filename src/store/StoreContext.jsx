@@ -215,6 +215,19 @@ export function StoreProvider({ children }) {
         const { settings } = stateRef.current;
         dispatch({ type: 'replace', state: buildSeed({ subject: subject || settings.subject, settings: { teacherName: settings.teacherName, school: settings.school, terms: settings.terms } }) });
       },
+      /** Empezar de cero: borra alumnos y todo su seguimiento; conserva perfil, asignatura, trimestres y biblioteca */
+      clearAll() {
+        const st = stateRef.current;
+        for (const m of st.materials) if (m.source === 'file') deleteFile(m.id);
+        dispatch({
+          type: 'replace',
+          state: {
+            ...st,
+            students: [], assignments: [], tasks: [], lessons: [], materials: [], notes: [], grades: [],
+            items: st.items.filter((i) => i.instrument === st.settings.subject),
+          },
+        });
+      },
       getState() {
         return stateRef.current;
       },

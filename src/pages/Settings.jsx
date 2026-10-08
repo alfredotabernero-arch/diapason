@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Download, FolderInput, RotateCcw, Send, ShieldCheck } from 'lucide-react';
+import { Download, FolderInput, RotateCcw, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Field from '../components/ui/Field.jsx';
 import Sheet, { ConfirmDialog } from '../components/ui/Sheet.jsx';
@@ -36,6 +36,7 @@ export default function Settings() {
   const [pending, setPending] = useState(null); // copia leída, a la espera de confirmar
   const [demoSubject, setDemoSubject] = useState(DEMO_SUBJECTS.includes(state.settings.subject) ? state.settings.subject : 'Violonchelo');
   const [confirmDemo, setConfirmDemo] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const fileRef = useRef();
   const course = courseOf();
   const ranges = courseRanges(course, terms);
@@ -193,13 +194,17 @@ export default function Settings() {
           </section>
 
           <section className="card space-y-3 p-4">
-            <h2 className="font-display text-xl">Datos de ejemplo</h2>
-            <p className="text-sm text-ink-500">Diez alumnos con horario, repertorio, tareas, historial de clases, asistencia y notas del curso pasado.</p>
+            <h2 className="font-display text-xl">Datos de ejemplo y empezar de cero</h2>
+            <p className="text-sm text-ink-500">Diez alumnos con horario, repertorio, tareas, historial de clases, asistencia y notas del curso pasado, para probar Diapasón.</p>
             <div className="flex flex-wrap gap-2">
               <select id="demo-subject" className="input !w-auto" value={demoSubject} onChange={(e) => setDemoSubject(e.target.value)} aria-label="Asignatura de los datos de ejemplo">
                 {DEMO_SUBJECTS.map((s) => <option key={s}>{s}</option>)}
               </select>
-              <button className="btn-danger" onClick={() => setConfirmDemo(true)}><RotateCcw size={16} /> Cargar datos de ejemplo</button>
+              <button className="btn-secondary" onClick={() => setConfirmDemo(true)}><RotateCcw size={16} /> Cargar datos de ejemplo</button>
+            </div>
+            <div className="border-t border-ink-100 pt-3">
+              <p className="text-sm text-ink-500">Cuando quieras trabajar con tus alumnos, borra los datos de ejemplo. Se conservan tu nombre, el centro, la asignatura, los trimestres y la biblioteca de repertorio.</p>
+              <button className="btn-danger mt-2" onClick={() => setConfirmClear(true)}><Trash2 size={16} /> Borrar todo y empezar</button>
             </div>
           </section>
 
@@ -251,6 +256,17 @@ export default function Settings() {
           actions.resetDemo(demoSubject);
           setProfile((p) => ({ ...p, subject: demoSubject }));
           actions.notify(`Datos de ejemplo de ${demoSubject} cargados`);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        title="Borrar todo y empezar"
+        message="Se borrarán todos los alumnos con sus clases, tareas, notas, calificaciones y material. Se conservan tu nombre, el centro, la asignatura, los trimestres y la biblioteca de repertorio. Si quieres guardar lo que hay, crea antes una copia."
+        confirmLabel="Borrar todo"
+        onConfirm={() => {
+          actions.clearAll();
+          actions.notify('Listo: Diapasón está vacío para empezar');
         }}
       />
     </>
