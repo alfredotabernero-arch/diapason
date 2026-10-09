@@ -164,11 +164,11 @@ export default function Settings() {
             </dl>
             {pendingHere ? (
               <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                <CircleDot size={16} className="mt-0.5 shrink-0" /> Hay cambios aquí que todavía no has enviado. Pulsa <b>Enviar datos</b> antes de cambiar de dispositivo.
+                <CircleDot size={16} className="mt-0.5 shrink-0" /> <span>Hay cambios aquí que todavía no has enviado. Pulsa <b>Enviar datos</b> antes de cambiar de dispositivo.</span>
               </p>
             ) : (
               <p className="flex items-start gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-800">
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> No hay cambios pendientes de enviar.
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> <span>No hay cambios pendientes de enviar.</span>
               </p>
             )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
