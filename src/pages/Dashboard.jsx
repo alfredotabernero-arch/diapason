@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isNative } from '../utils/platform.js';
 import { requestExit } from '../utils/backStack.js';
+import { deviceName, toDevice, hasPending, otherKind } from '../utils/paso.js';
+import { useEnviarDatos } from '../utils/useTransfer.js';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarCheck, ChevronRight, ClipboardPen, Clock, History, ListTodo, LogOut, Music2, Settings, ShieldAlert, Users } from 'lucide-react';
+import { CalendarCheck, ChevronRight, ClipboardPen, Clock, History, ListTodo, LogOut, Music2, Send, Settings, ShieldAlert, Users } from 'lucide-react';
 import Logo from '../components/brand/Logo.jsx';
 import StatCard from '../components/ui/StatCard.jsx';
 import AppointmentCard from '../components/agenda/AppointmentCard.jsx';
@@ -31,13 +33,16 @@ function useMinuteTick() {
 
 export default function Dashboard() {
   useMinuteTick();
-  const { state } = useStore();
+  const { state, paso } = useStore();
+  const { send, busy: sending } = useEnviarDatos();
   const navigate = useNavigate();
   const [editingTask, setEditingTask] = useState(null);
   const today = todayISO();
   const students = byId(state.students);
   const items = byId(state.items);
-  const { subject, lastBackup } = state.settings;
+  const { subject } = state.settings;
+  const lastCopy = [paso.lastSent, paso.lastReceived?.at].filter(Boolean).sort().pop();
+  const unsent = !!paso.lastReceived && hasPending(paso); // trabaja con dos dispositivos y hay algo sin pasar
 
   const todayAppts = agendaForDate(state, today);
   const next = nextAppointment(state, today, nowMinutes());
@@ -45,7 +50,7 @@ export default function Dashboard() {
   const pendingTasks = sortTasks(state.tasks.filter((t) => !t.done));
   const overdue = pendingTasks.filter((t) => t.dueDate && t.dueDate < today).length;
   const firstName = state.settings.teacherName.replace(/^Prof\.?\s*/i, '').split(' ')[0];
-  const backupDays = lastBackup ? daysBetween(lastBackup.slice(0, 10), today) : null;
+  const backupDays = lastCopy ? daysBetween(lastCopy.slice(0, 10), today) : null;
 
   const showcase = useMemo(
     () => [...activeObras].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 8),
@@ -83,11 +88,21 @@ export default function Dashboard() {
         <h1 className="font-display text-[1.9rem] md:text-[2.4rem] leading-tight">{greeting()}, {firstName}</h1>
       </header>
 
-      {(backupDays === null || backupDays > 14) && (
+      {unsent && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-100/70 px-4 py-2.5 text-sm text-amber-900">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" />
+          <span className="flex-1 font-semibold">Cambios sin enviar {toDevice(otherKind(paso))}</span>
+          <button className="btn !py-1.5 !px-3 bg-amber-600 text-white hover:bg-amber-700" onClick={send} disabled={sending}>
+            <Send size={15} /> {sending ? 'Preparando…' : 'Enviar'}
+          </button>
+        </div>
+      )}
+
+      {!unsent && (backupDays === null || backupDays > 14) && (
         <Link to="/ajustes#copia" className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 hover:bg-amber-100 transition">
           <ShieldAlert size={18} className="shrink-0" />
           <span className="flex-1">
-            {backupDays === null ? 'Aún no has hecho ninguna copia de seguridad.' : `Tu última copia es de hace ${backupDays} días.`} Haz una copia .zip para no perder datos y pasarlos a otro dispositivo.
+            {backupDays === null ? 'Aún no has hecho ninguna copia de seguridad.' : `Tu última copia es de hace ${backupDays} días.`} Pulsa Enviar datos para tener una copia y no perder nada.
           </span>
           <ChevronRight size={16} />
         </Link>

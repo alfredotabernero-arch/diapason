@@ -4,6 +4,22 @@ import { Capacitor } from '@capacitor/core';
 /** true dentro de la app Android */
 export const isNative = () => Capacitor.isNativePlatform();
 
+/** true en el programa instalado en Windows (Diapasón-Setup) */
+export const isDesktop = () => typeof window !== 'undefined' && !!window.diapasonPC?.escritorio;
+
+/** Tipo de dispositivo, para saber de dónde viene cada copia: PC, Mac, iPad, iPhone, Android o Navegador */
+export function deviceKind() {
+  if (isDesktop()) return 'PC';
+  if (isNative()) return 'Android';
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone|iPod/.test(ua)) return 'iPhone';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Windows/.test(ua)) return 'PC';
+  return 'Navegador';
+}
+
 /** true si se abrió como archivo local en el PC (Diapason.html con doble clic) */
 export const isLocalFile = () => typeof location !== 'undefined' && location.protocol === 'file:';
 

@@ -1,0 +1,71 @@
+{
+  "name": "diapason-escritorio",
+  "productName": "Diapasón",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Diapasón — La agenda inteligente para profesores de música",
+  "author": "Alfredo Tabernero Martínez",
+  "main": "main.js",
+  "scripts": {
+    "abrir": "electron .",
+    "instalador": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "37.2.0",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "es.diapason.agenda",
+    "productName": "Diapasón",
+    "executableName": "Diapason",
+    "copyright": "Creado por Alfredo Tabernero Martínez",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icono.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "www",
+        "filter": [
+          "**/*",
+          "!sw.js",
+          "!workbox-*.js"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icono.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Diapasón",
+      "installerIcon": "icono.ico",
+      "uninstallerIcon": "icono.ico",
+      "uninstallDisplayName": "Diapasón",
+      "artifactName": "Diapason-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "es_ES"
+      ],
+      "language": "3082"
+    }
+  }
+}

@@ -8,7 +8,8 @@ Aplicación **local** para profesores de música particulares, conservatorios y 
 
 | Dispositivo | Cómo se usa |
 |---|---|
-| **PC con Windows** | Doble clic en `Abrir en el PC.bat` (abre `Diapason.html`). Sin instalar nada y **sin Internet**. |
+| **PC con Windows** | Instalador `Diapason-Setup-x.y.z.exe`: programa propio con su icono, **sin navegador ni Internet**. |
+| **Mac** | La web en Safari › *Archivo › Añadir al Dock*: ventana propia y **sin conexión** tras la primera vez. |
 | **Android** | App instalable `Diapason.apk` (Capacitor 7), compilada por GitHub. |
 | **iPhone / iPad** | Se abre una vez la web en Safari y se añade a la pantalla de inicio; desde entonces funciona **sin conexión**. |
 
@@ -35,7 +36,7 @@ Incluye datos de ejemplo de **Violonchelo, Violín, Piano, Flauta y Lenguaje Mus
 | **Material didáctico** | PDF, vídeos, audios y enlaces asociados a un alumno o a una obra |
 | **Listados** | **Acta de calificaciones** (1.º, 2.º y 3.er trimestre y final, de 1 a 10, con la media como final propuesta editable), **alumnos y horario** (con rejilla semanal), **clases y asistencia** por trimestre o mes, y **tareas y repertorio** por alumno. Todos se imprimen o guardan en PDF y se exportan a Excel |
 | **Estadísticas** | Por profesor (alumnos, clases por semana, clases impartidas, evolución mensual, alumnos por nivel y especialidad, asistencia, estado de las obras, progreso, valoraciones) y por alumno |
-| **Ajustes** | Profesor, centro y **asignatura**; fechas de los trimestres; **copia de seguridad .zip** (crear, enviar y restaurar); datos de ejemplo por asignatura |
+| **Ajustes** | Profesor, centro y **asignatura**; fechas de los trimestres; **Enviar datos / Recibir datos** (.zip con todo) con el estado del paso entre dispositivos; datos de ejemplo por asignatura |
 
 ### Calificaciones
 
@@ -45,7 +46,7 @@ Escala de 1 a 10 en enteros: Insuficiente (1–4), Suficiente (5), Bien (6), Not
 
 Diapasón guarda los datos en el propio dispositivo; no hay servidor ni cuentas, así que los datos de los alumnos no salen de los equipos del profesor. Para cambiar de dispositivo:
 
-1. **Ajustes → Crear copia .zip** (en iPad/móvil, **Enviar copia…** abre AirDrop, correo, Drive…).
+1. **Ajustes → Enviar datos** (en iPad, iPhone y Mac abre AirDrop, Archivos, correo…; en Android, el menú Compartir). El fichero se llama `diapason-pc-…`, `diapason-ipad-…`, etc.
 2. Lleva el `.zip` al otro dispositivo.
 3. **Ajustes → Restaurar una copia**. Sustituye los datos por los de la copia, incluidos los archivos adjuntos.
 
@@ -66,12 +67,12 @@ Apple solo permite instalar apps nativas desde la App Store o TestFlight, lo que
 
 ## 🖥️ PC con Windows
 
-Como en Atril: doble clic en **`Abrir en el PC.bat`**, que abre **`Diapason.html`** en el navegador (Chrome o Edge). Es un único archivo con todo dentro (código, estilos, tipografías e icono), así que no necesita servidor ni conexión.
+Como Atril y Maestro: **`Diapason-Setup-x.y.z.exe`** instala Diapasón como un programa (carpeta `escritorio/`, Electron), con icono en el Escritorio y el menú Inicio. Es la misma app que la web (`dist/`) dentro de su propia ventana; los datos se guardan en `%APPDATA%\Diapasón` y no se pierden al actualizar (se instala encima).
 
-- **Paquete para el profesor** (`Diapason-PC.zip`, en Releases › *ultima*): `Diapason.html` + `Abrir en el PC.bat` + `LEEME.txt`. Se descomprime y listo.
-- **Carpeta del código fuente**: si falta `Diapason.html` o has cambiado el código, el `.bat` lo compila solo (`npm run build:pc`, necesita Node.js) y después lo abre.
-
-Los datos se guardan en el navegador del PC: usa siempre el mismo navegador.
+- F11 pantalla completa · Ctrl + / Ctrl − / Ctrl 0 zoom · Ctrl R recargar.
+- Los adjuntos (PDF, audio, vídeo) se abren con el programa del PC; los enlaces, en el navegador.
+- Probarlo sin instalar: `npm run build`, luego `cd escritorio && npm install && npm run abrir`.
+- `Abrir en el PC.bat` sigue sirviendo para probar en el navegador (`Diapason.html`).
 
 ## 🤖 Android
 
@@ -86,13 +87,12 @@ Para compilarlo en tu PC (opcional): `npm run android` y abre la carpeta `androi
 Cada vez que se suben cambios a `main`, GitHub Actions (`.github/workflows/deploy.yml`) compila todo sin necesitar nada en tu PC:
 
 1. **`Diapason.apk`** (Android).
-2. **`Diapason-PC.zip`** y **`Diapason.html`** (PC).
+2. **`Diapason-Setup-x.y.z.exe`** (instalador de Windows, en un equipo Windows de GitHub).
 3. La **web** en GitHub Pages (iPhone/iPad), que funciona sin conexión después de la primera visita.
 
-El APK y el paquete para PC quedan en **Releases › «ultima»**, con enlaces fijos:
+El APK y el instalador de Windows quedan en **Releases › «ultima»**, con enlaces fijos:
 
 - `https://github.com/TU_USUARIO/diapason/releases/download/ultima/Diapason.apk`
-- `https://github.com/TU_USUARIO/diapason/releases/download/ultima/Diapason-PC.zip`
 
 ## 🚀 Instalación para desarrollo
 

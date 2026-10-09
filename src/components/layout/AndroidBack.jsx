@@ -5,6 +5,8 @@ import { LogOut } from 'lucide-react';
 import Sheet from '../ui/Sheet.jsx';
 import { isNative } from '../../utils/platform.js';
 import { closeTopSheet } from '../../utils/backStack.js';
+import { useStore } from '../../store/StoreContext.jsx';
+import { deviceName, toDevice, hasPending, otherKind } from '../../utils/paso.js';
 
 /** Ruta «madre» a la que volver si no hay historial (p. ej. tras restaurar o abrir directamente) */
 function parentOf(path) {
@@ -25,6 +27,8 @@ export default function AndroidBack() {
   const pathRef = useRef(location.pathname);
   pathRef.current = location.pathname;
   const [askExit, setAskExit] = useState(false);
+  const { paso } = useStore();
+  const unsent = !!paso.lastReceived && hasPending(paso);
 
   useEffect(() => {
     const open = () => setAskExit(true);
@@ -65,6 +69,11 @@ export default function AndroidBack() {
       }
     >
       <p className="text-ink-600">Tus datos ya están guardados en este dispositivo. La próxima vez que abras Diapasón seguirás donde lo dejaste.</p>
+      {unsent && (
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Tienes cambios sin enviar {toDevice(otherKind(paso))}. Si vas a seguir trabajando allí, envíalos antes desde Ajustes › Enviar datos.
+        </p>
+      )}
     </Sheet>
   );
 }

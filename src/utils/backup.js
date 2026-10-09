@@ -3,21 +3,16 @@
 
 import JSZip from 'jszip';
 import { getFile, saveFile } from './files.js';
-import { todayISO } from './dates.js';
-import { deliverFile, isNative } from './platform.js';
+import { deliverFile, deviceKind, isNative } from './platform.js';
+import { originInfo, transferFileName } from './paso.js';
 
 const DATA_FILE = 'diapason-datos.json';
 
-export function backupFileName() {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  return `Diapason-copia-${todayISO()}-${hh}${mm}.zip`;
-}
-
-export async function createBackup(state) {
+/** Crea la copia .zip. `paso` (opcional) añade de qué dispositivo sale, para los avisos al recibirla */
+export async function createBackup(state, paso) {
   const zip = new JSZip();
-  zip.file(DATA_FILE, JSON.stringify({ ...state, exportedAt: new Date().toISOString(), app: 'Diapasón' }, null, 2));
+  const origen = paso ? originInfo(paso) : undefined;
+  zip.file(DATA_FILE, JSON.stringify({ ...state, exportedAt: new Date().toISOString(), app: 'Diapasón', origen }, null, 2));
   const files = state.materials.filter((m) => m.source === 'file');
   let missing = 0;
   for (const m of files) {
@@ -30,7 +25,7 @@ export async function createBackup(state) {
     }
   }
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-  return { blob, name: backupFileName(), files: files.length - missing, missing };
+  return { blob, name: transferFileName(paso?.device || deviceKind()), files: files.length - missing, missing };
 }
 
 /** Lee una copia .zip (o un .json de versiones anteriores) y devuelve los datos sin aplicarlos */
@@ -73,8 +68,9 @@ export async function shareBlob(blob, name) {
   return false;
 }
 
+/** Solo en iPhone, iPad y Mac: su menú Compartir trae AirDrop, Archivos, correo… (en Android ya se comparte siempre) */
 export const canShareFiles = () => {
-  if (isNative()) return false; // en Android «Crear copia» ya abre el menú Compartir
+  if (isNative() || !['iPad', 'iPhone', 'Mac'].includes(deviceKind())) return false;
   try {
     return !!navigator.canShare?.({ files: [new File([''], 'x.zip', { type: 'application/zip' })] });
   } catch {

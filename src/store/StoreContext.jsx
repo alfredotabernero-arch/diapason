@@ -4,6 +4,7 @@ import { todayISO } from '../utils/dates.js';
 import { uid, STATUS_DEFAULT_PROGRESS, isInstrumentSubject } from '../utils/constants.js';
 import { DEFAULT_TERMS } from '../utils/courses.js';
 import { deleteFile } from '../utils/files.js';
+import { readPaso, writePaso } from '../utils/paso.js';
 
 const STORAGE_KEY = 'diapason:v1';
 const LEGACY_KEY = 'music-teacher-studio:v1'; // nombre anterior de la app
@@ -88,6 +89,17 @@ export function StoreProvider({ children }) {
   const toastTimer = useRef();
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Paso de datos entre dispositivos: último cambio, envío y recepción de ESTE dispositivo
+  const [paso, setPaso] = useState(readPaso);
+  const silent = useRef(true); // el primer guardado (al abrir) y el de una copia recibida no cuentan como cambio
+
+  const updatePaso = useCallback((patch) => {
+    setPaso((p) => {
+      const next = { ...p, ...patch };
+      writePaso(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     try {
@@ -95,7 +107,9 @@ export function StoreProvider({ children }) {
     } catch {
       /* cuota superada o modo privado: la sesión sigue funcionando en memoria */
     }
-  }, [state]);
+    if (silent.current) silent.current = false;
+    else updatePaso({ lastChange: new Date().toISOString() });
+  }, [state, updatePaso]);
 
   const notify = useCallback((message) => {
     clearTimeout(toastTimer.current);
@@ -207,9 +221,9 @@ export function StoreProvider({ children }) {
         }
         dispatch({ type: 'replace', state: { ...st, students, settings: { ...st.settings, ...settings } } });
       },
-      markBackup() {
-        const st = stateRef.current;
-        dispatch({ type: 'replace', state: { ...st, settings: { ...st.settings, lastBackup: new Date().toISOString() } } });
+      /** Se ha enviado (o guardado) una copia desde este dispositivo */
+      markSent() {
+        updatePaso({ lastSent: new Date().toISOString() });
       },
       resetDemo(subject) {
         const { settings } = stateRef.current;
@@ -231,14 +245,18 @@ export function StoreProvider({ children }) {
       getState() {
         return stateRef.current;
       },
+      /** Recibir datos: sustituye todo por la copia y apunta de dónde y de cuándo es */
       replaceState(data) {
         if (!data || data.version !== 1 || !Array.isArray(data.students)) throw new Error('El archivo no es una copia de Diapasón');
-        dispatch({ type: 'replace', state: migrate(data) });
+        const { origen, exportedAt, app, ...clean } = data;
+        silent.current = true;
+        dispatch({ type: 'replace', state: migrate(clean) });
+        updatePaso({ lastReceived: { at: new Date().toISOString(), from: origen?.device || null, createdAt: origen?.createdAt || exportedAt || null } });
       },
     };
-  }, [notify]);
+  }, [notify, updatePaso]);
 
-  const value = useMemo(() => ({ state, actions, toast }), [state, actions, toast]);
+  const value = useMemo(() => ({ state, actions, toast, paso }), [state, actions, toast, paso]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

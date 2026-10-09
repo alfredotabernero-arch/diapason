@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Download, FolderInput, LogOut, RotateCcw, Send, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, CircleDot, FolderInput, LogOut, RotateCcw, Send, Trash2 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Field from '../components/ui/Field.jsx';
 import Sheet, { ConfirmDialog } from '../components/ui/Sheet.jsx';
@@ -11,8 +11,9 @@ import { requestExit } from '../utils/backStack.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { DEMO_SUBJECTS, SUBJECT_GROUPS, isInstrumentSubject } from '../utils/constants.js';
 import { DEFAULT_TERMS, courseLabel, courseOf, courseRanges } from '../utils/courses.js';
-import { formatFull } from '../utils/dates.js';
-import { canShareFiles, createBackup, downloadBlob, readBackup, restoreAttachments, shareBlob } from '../utils/backup.js';
+import { readBackup, restoreAttachments } from '../utils/backup.js';
+import { useEnviarDatos } from '../utils/useTransfer.js';
+import { deviceLabel, deviceName, hasPending, otherKind, receiveWarnings, whenLabel } from '../utils/paso.js';
 
 
 
@@ -29,7 +30,7 @@ function SubjectSelect({ value, onChange, id }) {
 }
 
 export default function Settings() {
-  const { state, actions } = useStore();
+  const { state, actions, paso } = useStore();
   const location = useLocation();
   const [profile, setProfile] = useState({ teacherName: state.settings.teacherName, school: state.settings.school, subject: state.settings.subject });
   const [terms, setTerms] = useState(state.settings.terms || DEFAULT_TERMS);
@@ -58,30 +59,7 @@ export default function Settings() {
     if (v) setTerms((t) => ({ ...t, [k]: { ...t[k], [edge]: v.slice(5) } }));
   };
 
-  const makeBackup = async (share = false) => {
-    setBusy(share ? 'share' : 'zip');
-    setError('');
-    try {
-      const { blob, name, missing } = await createBackup(actions.getState());
-      if (share) {
-        const ok = await shareBlob(blob, name).catch((e) => {
-          if (e?.name === 'AbortError') return 'cancel';
-          throw e;
-        });
-        if (ok === 'cancel') return;
-        if (!ok) downloadBlob(blob, name);
-      } else {
-        await downloadBlob(blob, name);
-      }
-      actions.markBackup();
-      actions.notify(missing ? `Copia creada (${missing} adjuntos no encontrados)` : 'Copia de seguridad creada');
-    } catch (e) {
-      if (/cancel/i.test(e?.message || '')) return; // menú Compartir cerrado sin elegir
-      setError(`No se pudo crear la copia: ${e.message}`);
-    } finally {
-      setBusy('');
-    }
-  };
+  const { send, busy: sending, error: sendError } = useEnviarDatos();
 
   const pickBackup = async (e) => {
     const file = e.target.files?.[0];
@@ -91,7 +69,7 @@ export default function Settings() {
     try {
       const read = await readBackup(file);
       if (!read.data || read.data.version !== 1 || !Array.isArray(read.data.students)) throw new Error('el archivo no es una copia de Diapasón');
-      setPending({ ...read, fileName: file.name });
+      setPending({ ...read, fileName: file.name, warnings: receiveWarnings(paso, read.data.origen) });
     } catch (err) {
       setError(`No se pudo leer la copia: ${err.message}`);
     }
@@ -104,7 +82,7 @@ export default function Settings() {
       actions.replaceState(pending.data);
       setProfile({ teacherName: pending.data.settings?.teacherName || '', school: pending.data.settings?.school || '', subject: pending.data.settings?.subject || 'Violonchelo' });
       setTerms(pending.data.settings?.terms || DEFAULT_TERMS);
-      actions.notify(`Copia restaurada${restored ? ` con ${restored} adjuntos` : ''}`);
+      actions.notify(`Datos recibidos ✓${restored ? ` (${restored} adjuntos)` : ''}`);
       setPending(null);
     } catch (err) {
       setError(`No se pudo restaurar: ${err.message}`);
@@ -113,7 +91,8 @@ export default function Settings() {
     }
   };
 
-  const last = state.settings.lastBackup;
+  const pendingHere = hasPending(paso);
+  const other = otherKind(paso);
 
   return (
     <>
@@ -164,31 +143,48 @@ export default function Settings() {
         <div className="space-y-4">
           <section id="copia" className="card space-y-3 p-4 scroll-mt-24">
             <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><ShieldCheck size={20} /></div>
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brass-50 text-brass-600"><ArrowLeftRight size={20} /></div>
               <div>
-                <h2 className="font-display text-xl">Copia de seguridad</h2>
-                <p className="text-sm text-ink-500">
-                  {last ? `Última copia: ${formatFull(last.slice(0, 10))}.` : 'Todavía no has hecho ninguna copia.'} Los datos se guardan solo en este dispositivo.
-                </p>
+                <h2 className="font-display text-xl">Pasar datos y copia de seguridad</h2>
+                <p className="text-sm text-ink-500">Tus datos se guardan solo en este dispositivo. Para trabajar en otro (PC, Mac, iPad o móvil), <b>envía</b> los datos aquí y <b>recíbelos</b> allí.</p>
               </div>
             </div>
+            <dl className="divide-y divide-ink-100 rounded-xl border border-ink-100 text-sm">
+              {[
+                ['Este dispositivo', deviceLabel(paso.device)],
+                ['Último cambio aquí', whenLabel(paso.lastChange) || '—'],
+                ['Último envío', whenLabel(paso.lastSent) || 'Nunca'],
+                ['Última recepción', paso.lastReceived ? `${whenLabel(paso.lastReceived.at)}${paso.lastReceived.from ? ` (desde ${deviceName(paso.lastReceived.from)})` : ''}` : 'Nunca'],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-3 px-3 py-2">
+                  <dt className="text-ink-500">{k}</dt>
+                  <dd className="text-right font-semibold text-ink-800">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {pendingHere ? (
+              <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <CircleDot size={16} className="mt-0.5 shrink-0" /> Hay cambios aquí que todavía no has enviado. Pulsa <b>Enviar datos</b> antes de cambiar de dispositivo.
+              </p>
+            ) : (
+              <p className="flex items-start gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-800">
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> No hay cambios pendientes de enviar.
+              </p>
+            )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button className="btn-primary" onClick={() => makeBackup(false)} disabled={!!busy}><Download size={16} /> {busy === 'zip' ? 'Creando…' : 'Crear copia .zip'}</button>
-              {canShareFiles() && (
-                <button className="btn-secondary" onClick={() => makeBackup(true)} disabled={!!busy}><Send size={16} /> {busy === 'share' ? 'Preparando…' : 'Enviar copia…'}</button>
-              )}
-              <button className="btn-secondary" onClick={() => fileRef.current.click()} disabled={!!busy}><FolderInput size={16} /> Restaurar una copia</button>
+              <button className="btn-primary" onClick={send} disabled={sending || !!busy}><Send size={16} /> {sending ? 'Preparando…' : 'Enviar datos'}</button>
+              <button className="btn-secondary" onClick={() => fileRef.current.click()} disabled={sending || !!busy}><FolderInput size={16} /> Recibir datos</button>
             </div>
             <input ref={fileRef} type="file" accept=".zip,application/zip,.json,application/json" className="hidden" onChange={pickBackup} />
-            {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+            {(error || sendError) && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error || sendError}</p>}
             <details className="rounded-xl bg-ink-50/60 px-3 py-2 text-sm text-ink-600">
-              <summary className="cursor-pointer font-semibold text-ink-700">Pasar los datos del PC al iPad o al móvil (y al revés)</summary>
+              <summary className="cursor-pointer font-semibold text-ink-700">Cómo pasar los datos{other ? ` con ${deviceName(other)}` : ' a otro dispositivo'}</summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5">
-                <li>En el dispositivo donde has trabajado, pulsa <b>Crear copia .zip</b>. En Android se abre el menú Compartir (Drive, correo, WhatsApp, Descargas…); en iPhone o iPad, <b>Enviar copia…</b> permite usar AirDrop, correo o Drive.</li>
-                <li>Lleva el archivo <i>Diapason-copia-….zip</i> al otro dispositivo.</li>
-                <li>Allí, abre Ajustes → <b>Restaurar una copia</b> y elige el archivo.</li>
+                <li>Aquí: <b>Enviar datos</b>. Se crea un fichero <i>diapason-{paso.device === 'Android' ? 'movil' : paso.device.toLowerCase()}-fecha-hora.zip</i> con todo, adjuntos incluidos. {paso.device === 'PC' ? 'Guárdalo, por ejemplo, en el Escritorio.' : paso.device === 'Android' ? 'Se abre el menú Compartir: Drive, Gmail, WhatsApp, Quick Share…' : 'Se abre el menú Compartir: AirDrop, Guardar en Archivos, correo, Drive…'}</li>
+                <li>Hazlo llegar al otro dispositivo: AirDrop (iPad ⇄ Mac), Drive o OneDrive, correo, WhatsApp o un pendrive.</li>
+                <li>Allí: Ajustes › <b>Recibir datos</b>, elige el fichero y pulsa <b>Sustituir</b>.</li>
               </ol>
-              <p className="mt-2 text-xs text-ink-400">Restaurar sustituye los datos del dispositivo por los de la copia, incluidos los PDF, audios y vídeos adjuntos. Trabaja en un solo dispositivo cada vez y pasa la copia al cambiar.</p>
+              <p className="mt-2 text-xs text-ink-400">La regla de oro: trabaja en un dispositivo cada vez. Al terminar en uno, envía; al empezar en el otro, recibe. Cada fichero enviado es también una copia de seguridad completa: guarda uno de vez en cuando en Drive o en el correo.</p>
             </details>
             <p className="text-xs text-ink-300">
               {state.students.length} alumnos · {state.items.filter((i) => i.instrument === state.settings.subject).length} elementos de repertorio · {state.lessons.length} registros de clase · {state.grades.length} actas · {state.materials.length} materiales
@@ -233,23 +229,35 @@ export default function Settings() {
       <Sheet
         open={!!pending}
         onClose={() => setPending(null)}
-        title="Restaurar copia"
+        title="Recibir datos"
         footer={
           <>
             <button className="btn-secondary" onClick={() => setPending(null)}>Cancelar</button>
-            <button className="btn bg-rose-600 text-white hover:bg-rose-700" onClick={restore} disabled={busy === 'restore'}>{busy === 'restore' ? 'Restaurando…' : 'Sustituir mis datos'}</button>
+            <button className={`btn text-white ${pending?.warnings?.length ? 'bg-rose-600 hover:bg-rose-700' : 'bg-ink-800 hover:bg-ink-700'}`} onClick={restore} disabled={busy === 'restore'}>{busy === 'restore' ? 'Recibiendo…' : 'Sustituir'}</button>
           </>
         }
       >
         {pending && (
           <div className="space-y-3 text-sm text-ink-600">
-            <p className="font-semibold text-ink-800 break-all">{pending.fileName}</p>
+            <p className="font-display text-lg leading-snug text-ink-900">
+              {pending.data.origen
+                ? `Copia hecha en ${deviceName(pending.data.origen.device)} ${whenLabel(pending.data.origen.createdAt)}`
+                : pending.data.exportedAt ? `Copia hecha ${whenLabel(pending.data.exportedAt)}` : 'Copia de Diapasón'}
+            </p>
+            <p className="break-all text-xs text-ink-400">{pending.fileName}</p>
             <ul className="space-y-1">
-              {pending.data.exportedAt && <li>Copia del {formatFull(pending.data.exportedAt.slice(0, 10))} a las {pending.data.exportedAt.slice(11, 16)} (UTC)</li>}
               <li>{pending.data.settings?.teacherName} · {pending.data.settings?.subject}</li>
               <li>{pending.data.students.length} alumnos · {(pending.data.lessons || []).length} registros de clase · {pending.attachments.length} adjuntos</li>
             </ul>
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">Los datos actuales de este dispositivo se sustituirán por los de la copia. Si quieres conservarlos, crea antes una copia.</p>
+            {pending.warnings?.map((w) => (
+              <div key={w.id} className="flex gap-2 rounded-xl bg-rose-50 px-3 py-2 text-rose-800">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <p><b>{w.title}.</b> {w.text}</p>
+              </div>
+            ))}
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">
+              <b>Sustituir</b> deja este dispositivo exactamente igual que la copia: lo que hay ahora aquí se reemplaza. {pending.warnings?.length ? 'Ante la duda, Cancelar no cambia nada.' : ''}
+            </p>
           </div>
         )}
       </Sheet>

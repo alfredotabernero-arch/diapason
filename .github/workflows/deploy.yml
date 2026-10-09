@@ -1,10 +1,10 @@
 name: Compilar Diapasón
 
 # En cada subida a main GitHub compila todo, sin necesitar nada en el PC:
-#  · Diapason.apk          → app Android (firma fija: se instala encima sin perder datos)
-#  · Diapason-PC.zip       → Diapason.html + «Abrir en el PC.bat» (se abre con doble clic, sin Internet)
-#  · Web en GitHub Pages   → para iPhone/iPad: se añade a la pantalla de inicio y funciona sin conexión
-# El APK y el paquete para PC se publican en Releases › «ultima».
+#  · Diapason.apk                 → app Android (firma fija: se instala encima sin perder datos)
+#  · Diapason-Setup-x.y.z.exe     → instalador de Windows (programa propio, sin navegador ni Internet)
+#  · Web en GitHub Pages          → para iPhone, iPad y Mac: se añade a la pantalla de inicio o al Dock y funciona sin conexión
+# El APK y el instalador se publican en Releases › «ultima».
 on:
   push:
     branches: [main]
@@ -31,17 +31,36 @@ jobs:
       - run: npm ci
       - name: Web (sin conexión tras la primera visita)
         run: npm run build
-      - name: Paquete para PC (un solo Diapason.html)
-        run: npm run paquete-pc
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            escritorio/package-lock.json
+      - run: npm ci
+      - name: Compilar la app
+        run: npm run build
+      - name: Crear el instalador de Windows
+        working-directory: escritorio
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('../package.json').version")
+          npm ci
+          npx electron-builder --win --x64 --publish never -c.extraMetadata.version=$VERSION
+          cp "dist/Diapason-Setup-$VERSION.exe" ..
       - uses: actions/upload-artifact@v4
         with:
-          name: pc
-          path: |
-            release/Diapason-PC.zip
-            Diapason.html
+          name: windows
+          path: Diapason-Setup-*.exe
 
   android:
     runs-on: ubuntu-latest
@@ -73,7 +92,7 @@ jobs:
           path: Diapason.apk
 
   publicar:
-    needs: [web-y-pc, android]
+    needs: [web-y-pc, android, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,15 +105,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          ls -la salida salida/release || true
-          gh release delete pc --yes --cleanup-tag || true
+          ls -la salida
           gh release delete ultima --yes --cleanup-tag || true
-          gh release create ultima salida/Diapason.apk salida/release/Diapason-PC.zip salida/Diapason.html \
+          gh release create ultima salida/Diapason.apk "salida/Diapason-Setup-$VERSION.exe" \
             --title "Diapasón $VERSION" \
             --target "$GITHUB_SHA" \
             --notes "**Android:** descarga e instala Diapason.apk (se instala encima de la versión anterior sin perder datos).
-          **PC (Windows):** descarga Diapason-PC.zip, descomprímelo y haz doble clic en «Abrir en el PC.bat». Funciona sin Internet.
-          **iPhone / iPad:** abre https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ en Safari y elige Compartir → Añadir a pantalla de inicio."
+          **PC (Windows):** descarga Diapason-Setup-$VERSION.exe y ábrelo (se instala encima de la versión anterior sin perder datos). Funciona sin Internet.
+          **iPhone / iPad:** abre https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ en Safari y elige Compartir → Añadir a pantalla de inicio.
+          **Mac:** abre la misma dirección en Safari y elige Archivo → Añadir al Dock."
 
   web:
     needs: web-y-pc
