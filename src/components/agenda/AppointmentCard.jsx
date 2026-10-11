@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, ClipboardPen, Clock, UserX, Users } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ClipboardPen, Clock, UserX, Users } from 'lucide-react';
+import { ChangeSheet } from './ChangeSheet.jsx';
 import Avatar from '../ui/Avatar.jsx';
 import Sheet from '../ui/Sheet.jsx';
 import { useStore } from '../../store/StoreContext.jsx';
 import { ATTENDANCE_STYLE, attended, instrumentStyle } from '../../utils/constants.js';
-import { endTime, formatLong, nowMinutes, timeToMinutes, todayISO } from '../../utils/dates.js';
+import { endTime, formatLong, formatShort, nowMinutes, timeToMinutes, todayISO } from '../../utils/dates.js';
 import { fullName } from '../../utils/selectors.js';
 
 /**
@@ -16,6 +17,7 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
   const navigate = useNavigate();
   const { state } = useStore();
   const [groupOpen, setGroupOpen] = useState(false);
+  const [changeOpen, setChangeOpen] = useState(false);
   const subject = state.settings.subject;
   const first = appt.student;
   const st = instrumentStyle(appt.isGroup ? subject : first.instrument);
@@ -67,7 +69,19 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
             <span className="text-ink-200">·</span>
             <Clock size={12} className="shrink-0" /> {appt.duration} min
           </p>
+          {appt.change && (
+            <p className="mt-1">
+              <span className={`chip !py-0.5 ${appt.change.kind === 'extra' ? 'bg-violet-50 text-violet-700' : 'bg-sky-50 text-sky-700'}`}>
+                {appt.change.kind === 'extra' ? 'Clase puntual' : `Movida del ${formatShort(appt.change.date)}`}
+              </span>
+            </p>
+          )}
         </div>
+        {!compact && (
+          <button onClick={(e) => { e.stopPropagation(); setChangeOpen(true); }} className="p-2 text-ink-300 hover:text-ink-700 hover:bg-ink-50 rounded-xl" aria-label="Cambiar solo este día" title="Cambiar solo este día (anular o mover)">
+            <CalendarClock size={19} />
+          </button>
+        )}
         {live && <span className="chip bg-rose-50 text-rose-600 animate-pulse">En curso</span>}
         {absent ? (
           <button onClick={register} className="p-2 text-amber-600 hover:bg-amber-50 rounded-xl" title={appt.lesson.attendance} aria-label={appt.lesson.attendance}>
@@ -85,6 +99,8 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
           )
         )}
       </div>
+
+      <ChangeSheet open={changeOpen} onClose={() => setChangeOpen(false)} appt={appt} />
 
       {appt.isGroup && (
         <Sheet

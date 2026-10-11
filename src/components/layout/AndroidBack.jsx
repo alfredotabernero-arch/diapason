@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { App as CapApp } from '@capacitor/app';
 import { LogOut } from 'lucide-react';
 import Sheet from '../ui/Sheet.jsx';
-import { isNative } from '../../utils/platform.js';
+import { exitApp, isNative } from '../../utils/platform.js';
 import { closeTopSheet } from '../../utils/backStack.js';
 import { useStore } from '../../store/StoreContext.jsx';
 import { deviceName, toDevice, hasPending, otherKind } from '../../utils/paso.js';
@@ -62,7 +62,7 @@ export default function AndroidBack() {
       footer={
         <>
           <button className="btn-secondary" onClick={() => setAskExit(false)}>Cancelar</button>
-          <button className="btn-primary" onClick={() => CapApp.exitApp()}>
+          <button className="btn-primary" onClick={() => exitApp()}>
             <LogOut size={18} /> Salir
           </button>
         </>

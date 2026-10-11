@@ -74,13 +74,8 @@ export const INSTRUMENT_STYLE = {
 export const instrumentStyle = (name) =>
   INSTRUMENT_STYLE[name] || { dot: 'bg-ink-300', soft: 'bg-ink-50 text-ink-600', ring: 'ring-ink-200', bar: 'bg-ink-400', hex: '#9DA9C4', border: 'border-l-ink-300' };
 
-export const LEVELS = [
-  'Iniciación',
-  'Elemental 1º', 'Elemental 2º', 'Elemental 3º', 'Elemental 4º',
-  'Profesional 1º', 'Profesional 2º', 'Profesional 3º', 'Profesional 4º', 'Profesional 5º', 'Profesional 6º',
-  'Superior',
-  'Adulto · Inicial', 'Adulto · Intermedio', 'Adulto · Avanzado',
-];
+// Los niveles son editables en Ajustes › Niveles (ver utils/school.js); estos son los de partida
+export { DEFAULT_LEVELS as LEVELS } from './school.js';
 
 export const REPERTOIRE_LEVELS = ['Iniciación', 'Elemental', 'Profesional', 'Superior'];
 

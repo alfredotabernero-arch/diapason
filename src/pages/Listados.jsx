@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FileSpreadsheet, MessageSquareText, Printer } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Files, MessageSquareText, Printer } from 'lucide-react';
+import SchoolLogo from '../components/brand/SchoolLogo.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
@@ -13,25 +14,32 @@ import { GRADE_ABBR, REPERTOIRE_TYPES, TERMS, attended, gradeLabel, gradeStyle, 
 import { courseLabel, courseOf, courseRanges, finalGrade, proposedFinal, shiftCourse } from '../utils/courses.js';
 import { WEEKDAYS, addDays, endTime, formatFull, formatShort, formatHours, isoWeekday, monthLabel, startOfMonth, addMonths, todayISO } from '../utils/dates.js';
 import { downloadCSV } from '../utils/csv.js';
-import { isNative } from '../utils/platform.js';
+import { deliverFile, isDesktop, isNative } from '../utils/platform.js';
+import { activeStudents, altaOf, courseStart, isActive, levelIn, levelIndex, yearLabel, yearsStayed } from '../utils/school.js';
+import { buildBoletin, lugarYFecha, termsUpTo } from '../utils/boletin.js';
 import { byId, fullName, sortTasks, studentAssignments } from '../utils/selectors.js';
 
 const LISTS = [
   { value: 'notas', label: 'Calificaciones' },
-  { value: 'alumnos', label: 'Alumnos y horario' },
+  { value: 'boletin', label: 'Hoja del alumno' },
+  { value: 'alumnos', label: 'Alumnos activos' },
+  { value: 'antiguos', label: 'Antiguos alumnos' },
   { value: 'asistencia', label: 'Clases y asistencia' },
   { value: 'tareas', label: 'Tareas y repertorio' },
 ];
 
+const ddmmaa = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 const bySurname = (a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'es');
 
 export default function Listados() {
   const [params, setParams] = useSearchParams();
   const list = params.get('lista') || 'notas';
   const { state } = useStore();
-  const groups = [...new Set(state.students.map((s) => s.group).filter(Boolean))].sort();
+  const groups = [...new Set(activeStudents(state).map((s) => s.group).filter(Boolean))].sort();
   const [group, setGroup] = useState('');
-  const students = state.students.filter((s) => !group || s.group === group).sort(bySurname);
+  // las listas del curso usan los alumnos activos; el acta de un curso pasado, los que estaban entonces
+  const all = state.students.filter((s) => !group || s.group === group).sort(bySurname);
+  const students = all.filter((s) => isActive(s));
 
   return (
     <>
@@ -49,8 +57,10 @@ export default function Listados() {
         )}
       </div>
       <div key={list} className="mt-4 animate-fade-up">
-        {list === 'notas' && <GradesList students={students} group={group} />}
+        {list === 'notas' && <GradesList students={all} group={group} />}
+        {list === 'boletin' && <BoletinList students={all} group={group} />}
         {list === 'alumnos' && <StudentsList students={students} group={group} />}
+        {list === 'antiguos' && <FormerList students={all.filter((s) => !isActive(s))} group={group} />}
         {list === 'asistencia' && <AttendanceList students={students} group={group} />}
         {list === 'tareas' && <TasksList students={students} group={group} />}
       </div>
@@ -104,7 +114,8 @@ function GradesList({ students, group }) {
   const gradeOf = (id) => state.grades.find((g) => g.studentId === id && g.course === course);
   const showInstrument = !isInstrumentSubject(state.settings.subject);
 
-  const rows = students.map((s) => {
+  const enCurso = students.filter((s) => isActive(s, courseStart(course)) || gradeOf(s.id));
+  const rows = enCurso.map((s) => {
     const g = gradeOf(s.id);
     return { s, g, fin: finalGrade(g), auto: !g || g.final === null || g.final === undefined };
   });
@@ -135,7 +146,7 @@ function GradesList({ students, group }) {
         </p>
       )}
       <PrintHeader title="Acta de calificaciones" detail={`${courseLabel(course)}${group ? ` · ${group}` : ''}`} />
-      {students.length ? (
+      {enCurso.length ? (
         <Table>
           <thead>
             <tr>
@@ -151,7 +162,7 @@ function GradesList({ students, group }) {
             {rows.map(({ s, g, fin, auto }) => (
               <tr key={s.id} className="hover:bg-ink-50/40">
                 <Td className="whitespace-nowrap"><Link to={`/alumnos/${s.id}`} className="font-semibold text-ink-800 hover:underline">{s.lastName}, {s.firstName}</Link></Td>
-                <Td className="whitespace-nowrap text-ink-500">{showInstrument ? `${s.instrument} · ` : ''}{s.level}</Td>
+                <Td className="whitespace-nowrap text-ink-500">{showInstrument ? `${s.instrument} · ` : ''}{levelIn(s, course)}</Td>
                 {TERMS.map((t) => (
                   <Td key={t.key} className="text-center">
                     <span className="no-print"><GradeSelect label={`${t.label} de ${fullName(s)}`} value={g?.[t.key] ?? null} onChange={(v) => actions.saveGrade(s.id, course, { [t.key]: v })} /></span>
@@ -215,17 +226,17 @@ function StudentsList({ students, group }) {
   }, [students]);
 
   const csv = () => downloadCSV(`Alumnos-${state.settings.subject}${fileTag(group)}`,
-    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupo', 'Teléfono', 'Email', 'Horario', 'Alumno desde'],
-    students.map((s) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.level, s.group || '', s.phone, s.email, schedule(s), s.since ? formatShort(s.since) : '']));
+    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupo', 'Año en la escuela', 'Fecha de alta', 'Teléfono', 'Email', 'Horario'],
+    students.map((s) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.level, s.group || '', yearLabel(s), ddmmaa(altaOf(s)), s.phone, s.email, schedule(s)]));
 
   return (
     <>
       <Toolbar onCSV={csv}><span className="text-sm text-ink-500">{students.length} alumnos</span></Toolbar>
-      <PrintHeader title="Alumnos y horario" detail={group} />
+      <PrintHeader title="Alumnos activos y horario" detail={group} />
       <Table>
         <thead>
           <tr>
-            <Th>Alumno</Th>{showInstrument && <Th>Especialidad</Th>}<Th>Nivel</Th><Th>Grupo</Th><Th>Teléfono</Th><Th>Email</Th><Th>Horario</Th>
+            <Th>Alumno</Th>{showInstrument && <Th>Especialidad</Th>}<Th>Nivel</Th><Th>Grupo</Th><Th>Año</Th><Th>Alta</Th><Th>Teléfono</Th><Th>Email</Th><Th>Horario</Th>
           </tr>
         </thead>
         <tbody>
@@ -235,6 +246,8 @@ function StudentsList({ students, group }) {
               {showInstrument && <Td>{s.instrument}</Td>}
               <Td className="whitespace-nowrap">{s.level}</Td>
               <Td className="whitespace-nowrap">{s.group || '—'}</Td>
+              <Td className="whitespace-nowrap">{yearLabel(s)}</Td>
+              <Td className="whitespace-nowrap tabular-nums">{ddmmaa(altaOf(s))}</Td>
               <Td className="whitespace-nowrap tabular-nums">{s.phone || '—'}</Td>
               <Td className="break-all">{s.email || '—'}</Td>
               <Td className="text-ink-500">{schedule(s) || '—'}</Td>
@@ -433,6 +446,157 @@ function TasksList({ students, group }) {
           </section>
         ))}
       </div>
+    </>
+  );
+}
+
+/* ---------- Antiguos alumnos ---------- */
+
+function FormerList({ students, group }) {
+  const { state } = useStore();
+  const csv = () => downloadCSV(`Antiguos-alumnos-${state.settings.subject}${fileTag(group)}`,
+    ['Apellidos', 'Nombre', 'Especialidad', 'Último nivel', 'Fecha de alta', 'Fecha de baja', 'Cursos en la escuela', 'Teléfono', 'Email'],
+    students.map((s) => [s.lastName, s.firstName, s.instrument, s.level, ddmmaa(altaOf(s)), ddmmaa(s.leftAt), yearsStayed(s), s.phone, s.email]));
+  return (
+    <>
+      <Toolbar onCSV={csv}><span className="text-sm text-ink-500">{students.length} antiguos alumnos</span></Toolbar>
+      <PrintHeader title="Antiguos alumnos" detail={group} />
+      {students.length ? (
+        <Table>
+          <thead><tr><Th>Alumno</Th><Th>Especialidad</Th><Th>Último nivel</Th><Th>Alta</Th><Th>Baja</Th><Th className="text-center">Cursos</Th><Th>Contacto</Th></tr></thead>
+          <tbody>
+            {students.map((s) => (
+              <tr key={s.id}>
+                <Td className="whitespace-nowrap"><Link to={`/alumnos/${s.id}`} className="font-semibold text-ink-800 hover:underline">{s.lastName}, {s.firstName}</Link></Td>
+                <Td>{s.instrument}</Td>
+                <Td className="whitespace-nowrap">{s.level}</Td>
+                <Td className="whitespace-nowrap tabular-nums">{ddmmaa(altaOf(s))}</Td>
+                <Td className="whitespace-nowrap tabular-nums">{ddmmaa(s.leftAt) || '—'}</Td>
+                <Td className="text-center tabular-nums">{yearsStayed(s)}</Td>
+                <Td className="text-ink-500">{[s.phone, s.email].filter(Boolean).join(' · ') || '—'}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      ) : <EmptyState title="No hay antiguos alumnos" text="Al poner la fecha de baja a un alumno (en su ficha), aparece aquí con todo su historial." />}
+    </>
+  );
+}
+
+/* ---------- Hoja de calificaciones del alumno ---------- */
+
+/** Trimestre más reciente con alguna nota puesta en el curso (o el primero) */
+function lastTermWithGrades(grades, course) {
+  for (const k of ['t3', 't2', 't1']) if (grades.some((g) => g.course === course && g[k] !== null && g[k] !== undefined)) return k;
+  return 't1';
+}
+
+function BoletinList({ students, group }) {
+  const { state } = useStore();
+  const current = courseOf();
+  // a principio de curso aún no hay notas: se propone el curso anterior
+  const hayNotas = (c) => state.grades.some((g) => g.course === c && [g.t1, g.t2, g.t3].some((v) => v !== null && v !== undefined));
+  const [course, setCourse] = useState(() => (hayNotas(current) || !hayNotas(shiftCourse(current, -1)) ? current : shiftCourse(current, -1)));
+  const [term, setTerm] = useState(() => lastTermWithGrades(state.grades, hayNotas(current) || !hayNotas(shiftCourse(current, -1)) ? current : shiftCourse(current, -1)));
+  const [date, setDate] = useState(todayISO());
+  const enCurso = students.filter((s) => isActive(s, courseStart(course)) || state.grades.some((g) => g.studentId === s.id && g.course === course));
+  const [who, setWho] = useState('');
+  const sel = enCurso.find((s) => s.id === who) || enCurso[0];
+  const [busy, setBusy] = useState('');
+  const gradeOf = (id) => state.grades.find((g) => g.studentId === id && g.course === course) || null;
+  const terms = termsUpTo(term);
+  const fileBase = `Calificaciones-${TERMS.find((t) => t.key === term).short}-${course}`;
+
+  const generar = async (lista, nombre) => {
+    setBusy(lista.length > 1 ? 'todas' : 'una');
+    try {
+      const blob = await buildBoletin(lista.map((s) => ({ student: s, grade: gradeOf(s.id) })), { settings: state.settings, course, term, date });
+      const name = `${nombre}.pdf`;
+      if (isDesktop()) await window.diapasonPC.abrirArchivo(name, await blob.arrayBuffer());
+      else await deliverFile(blob, name, name);
+    } finally { setBusy(''); }
+  };
+
+  return (
+    <>
+      <div className="no-print mb-3 card space-y-3 p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="block"><span className="label">Curso</span>
+            <select className="input" value={course} onChange={(e) => { setCourse(e.target.value); setTerm(lastTermWithGrades(state.grades, e.target.value)); }}>
+              {[shiftCourse(current, -1), current].map((c) => <option key={c} value={c}>{courseLabel(c)}</option>)}
+            </select>
+          </label>
+          <div><span className="label">Trimestre</span>
+            <Segmented value={term} onChange={setTerm} options={TERMS.map((t) => ({ value: t.key, label: t.short }))} />
+          </div>
+          <label className="block"><span className="label">Fecha de la hoja</span>
+            <input type="date" className="input !px-2" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          </label>
+        </div>
+        <p className="text-xs text-ink-400">La hoja del {TERMS.find((t) => t.key === term).label} incluye {terms.length === 1 ? 'ese trimestre' : `los ${terms.length} primeros trimestres`}{term === 't3' ? ' y la calificación final' : ''}, con sus observaciones. El encabezado usa el logo, la escuela y la localidad de Ajustes.</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block min-w-[14rem] flex-1"><span className="label">Alumno</span>
+            <select className="input" value={sel?.id || ''} onChange={(e) => setWho(e.target.value)}>
+              {enCurso.map((s) => <option key={s.id} value={s.id}>{s.lastName}, {s.firstName}</option>)}
+            </select>
+          </label>
+          <button className="btn-primary" disabled={!sel || !!busy} onClick={() => generar([sel], `${fileBase}-${sel.lastName}-${sel.firstName}`.replace(/\s+/g, '-'))}>
+            <FileDown size={16} /> {busy === 'una' ? 'Preparando…' : 'Hoja de este alumno'}
+          </button>
+          <button className="btn-secondary" disabled={!enCurso.length || !!busy} onClick={() => generar(enCurso, `${fileBase}${fileTag(group)}`)}>
+            <Files size={16} /> {busy === 'todas' ? 'Preparando…' : `Todas en un PDF (${enCurso.length})`}
+          </button>
+        </div>
+      </div>
+
+      {sel ? (
+        <article className="card mx-auto max-w-2xl bg-white p-6 font-serif text-ink-900 sm:p-8">
+          <header className="flex items-start gap-4 border-b-2 border-ink-800 pb-3">
+            <SchoolLogo src={state.settings.schoolLogo} className="h-14 w-14 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-xl leading-tight">{state.settings.school}</p>
+              <p className="text-sm italic text-ink-500">{state.settings.subject}</p>
+              <p className="text-sm text-ink-500">Profesor/a: {state.settings.teacherName}</p>
+            </div>
+            <p className="text-xs text-ink-400">{courseLabel(course)}</p>
+          </header>
+          <p className="mt-5 text-center text-sm font-semibold tracking-[0.2em]">INFORME DE EVALUACIÓN</p>
+          <p className="text-center text-sm italic text-ink-500">{TERMS.find((t) => t.key === term).label}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-[#F6F4EF] px-4 py-3 text-sm">
+            <p><span className="block text-[10px] uppercase tracking-wider text-ink-400">Alumno/a</span><b>{fullName(sel)}</b></p>
+            <p><span className="block text-[10px] uppercase tracking-wider text-ink-400">Nivel</span><b>{levelIn(sel, course)}</b></p>
+            <p><span className="block text-[10px] uppercase tracking-wider text-ink-400">Grupo</span><b>{sel.group || '—'}</b></p>
+            <p><span className="block text-[10px] uppercase tracking-wider text-ink-400">Año en la escuela</span><b>{yearLabel(sel, course)}</b></p>
+          </div>
+          <table className="mt-4 w-full text-sm">
+            <thead><tr className="border-y border-ink-800 text-left text-[10px] uppercase tracking-wider text-ink-500"><th className="py-1.5">Evaluación</th><th>Calificación</th><th>Observaciones</th></tr></thead>
+            <tbody>
+              {terms.map((t) => {
+                const g = gradeOf(sel.id);
+                const v = g?.[t.key];
+                return (
+                  <tr key={t.key} className="border-b border-ink-100 align-top">
+                    <td className="py-2 pr-2">{t.label}</td>
+                    <td className="py-2 pr-2 whitespace-nowrap">{v !== null && v !== undefined ? <><b className="text-lg">{v}</b> <i className="text-ink-500">{gradeLabel(v)}</i></> : <span className="text-ink-300">—</span>}</td>
+                    <td className="py-2 italic text-ink-700">{g?.comments?.[t.key] || <span className="not-italic text-ink-300">—</span>}</td>
+                  </tr>
+                );
+              })}
+              {term === 't3' && finalGrade(gradeOf(sel.id)) !== null && (
+                <tr className="border-b border-ink-800 bg-[#F6F4EF] align-top">
+                  <td className="py-2 pr-2 font-semibold">Calificación final</td>
+                  <td className="py-2 pr-2"><b className="text-lg">{finalGrade(gradeOf(sel.id))}</b> <i className="text-ink-500">{gradeLabel(finalGrade(gradeOf(sel.id)))}</i></td>
+                  <td className="py-2 italic text-ink-700">{gradeOf(sel.id)?.comments?.final || ''}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="mt-8 text-right text-sm">{lugarYFecha(state.settings.locality, date)}</p>
+          <div className="ml-auto mt-12 w-56 border-t border-ink-800 pt-1 text-center text-xs text-ink-500">Firma del profesor/a<br /><span className="text-sm text-ink-800">{state.settings.teacherName}</span></div>
+          {!state.settings.locality && <p className="no-print mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Falta la localidad: ponla en Ajustes › Profesor y asignatura.</p>}
+        </article>
+      ) : <EmptyState title="No hay alumnos en ese curso" />}
+      <p className="mt-3 text-center text-xs text-ink-400">Vista previa. El PDF lleva además la gráfica de evolución de las notas.</p>
     </>
   );
 }

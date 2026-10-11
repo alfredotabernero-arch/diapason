@@ -15,6 +15,7 @@ import MaterialFormSheet from '../components/materials/MaterialFormSheet.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { REPERTOIRE_TYPES, itemTitle } from '../utils/constants.js';
 import { byId, fullName } from '../utils/selectors.js';
+import { activeStudents } from '../utils/school.js';
 
 export default function RepertoireDetail() {
   const { id } = useParams();
@@ -40,7 +41,7 @@ export default function RepertoireDetail() {
   const assignments = state.assignments.filter((a) => a.itemId === id).map((a) => ({ ...a, item, student: students.get(a.studentId) })).filter((a) => a.student);
   const materials = state.materials.filter((m) => m.itemId === id);
   const tasks = state.tasks.filter((t) => t.itemId === id && !t.done);
-  const candidates = state.students.filter((s) => !assignments.some((a) => a.studentId === s.id));
+  const candidates = activeStudents(state).filter((s) => !assignments.some((a) => a.studentId === s.id));
 
   const fields = {
     obra: [['Título', item.title], ['Compositor', item.composer], ['Nivel', item.level]],

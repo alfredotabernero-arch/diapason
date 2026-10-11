@@ -8,6 +8,8 @@ import StudentCard from '../components/students/StudentCard.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { ACTIVE_STATUSES, instrumentStyle } from '../utils/constants.js';
 import { fullName, normalize } from '../utils/selectors.js';
+import Segmented from '../components/ui/Segmented.jsx';
+import { isActive, levelIndex } from '../utils/school.js';
 
 const SORTS = { nombre: 'Nombre', nivel: 'Nivel', progreso: 'Progreso' };
 
@@ -16,10 +18,14 @@ export default function Students() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState('nombre');
+  const [tab, setTab] = useState('activos');
+  const nActivos = state.students.filter((s) => isActive(s)).length;
+  const nAntiguos = state.students.length - nActivos;
+  const pool = state.students.filter((s) => (tab === 'activos' ? isActive(s) : !isActive(s)));
 
   const enriched = useMemo(
     () =>
-      state.students.map((s) => {
+      pool.map((s) => {
         const active = state.assignments.filter((a) => a.studentId === s.id && ACTIVE_STATUSES.includes(a.status));
         return {
           s,
@@ -27,14 +33,14 @@ export default function Students() {
           pending: state.tasks.filter((t) => t.studentId === s.id && !t.done).length,
         };
       }),
-    [state.students, state.assignments, state.tasks]
+    [pool, state.assignments, state.tasks]
   );
 
   // Filtros rápidos: grupos, especialidades (si hay varias) y niveles
-  const count = (fn) => state.students.filter(fn).length;
-  const groups = [...new Set(state.students.map((s) => s.group).filter(Boolean))].sort();
-  const instruments = [...new Set(state.students.map((s) => s.instrument))].sort();
-  const levels = [...new Set(state.students.map((s) => s.level))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  const count = (fn) => pool.filter(fn).length;
+  const groups = [...new Set(pool.map((s) => s.group).filter(Boolean))].sort();
+  const instruments = [...new Set(pool.map((s) => s.instrument))].sort();
+  const levels = [...new Set(pool.map((s) => s.level))].sort((a, b) => levelIndex(state.settings, a) - levelIndex(state.settings, b));
   const chips = [
     ...groups.map((g) => ({ value: g, kind: 'group', count: count((s) => s.group === g) })),
     ...(instruments.length > 1 ? instruments.map((i) => ({ value: i, kind: 'instrument', count: count((s) => s.instrument === i) })) : []),
@@ -46,7 +52,7 @@ export default function Students() {
     .filter(({ s }) => normalize(`${fullName(s)} ${s.instrument} ${s.level} ${s.group} ${s.email} ${s.phone}`).includes(normalize(q)))
     .sort((a, b) =>
       sort === 'progreso' ? b.progress - a.progress
-        : sort === 'nivel' ? a.s.level.localeCompare(b.s.level, 'es', { numeric: true }) || a.s.firstName.localeCompare(b.s.firstName)
+        : sort === 'nivel' ? levelIndex(state.settings, a.s.level) - levelIndex(state.settings, b.s.level) || a.s.firstName.localeCompare(b.s.firstName)
           : fullName(a.s).localeCompare(fullName(b.s), 'es')
     );
 
@@ -54,9 +60,12 @@ export default function Students() {
     <>
       <PageHeader
         title="Alumnos"
-        subtitle={`${state.students.length} alumnos · ${state.settings.subject}`}
+        subtitle={`${nActivos} alumnos · ${state.settings.subject}`}
         actions={<Link to="/alumnos/nuevo" className="btn-primary !px-3"><UserPlus size={18} /> Nuevo</Link>}
       />
+      {nAntiguos > 0 && (
+        <Segmented className="mb-3" value={tab} onChange={(v) => { setTab(v); setFilter(''); }} options={[{ value: 'activos', label: 'Activos', count: nActivos }, { value: 'antiguos', label: 'Antiguos alumnos', count: nAntiguos }]} />
+      )}
       <SearchInput value={q} onChange={setQ} placeholder="Buscar por nombre, nivel, grupo…" />
 
       <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:flex-wrap md:px-0">
@@ -93,8 +102,8 @@ export default function Students() {
       {!list.length && (
         <EmptyState
           icon={Users}
-          title={state.students.length ? 'Sin resultados' : 'Aún no hay alumnos'}
-          text={state.students.length ? 'Prueba con otra búsqueda o filtro.' : 'Da de alta a tu primer alumno.'}
+          title={pool.length ? 'Sin resultados' : tab === 'antiguos' ? 'No hay antiguos alumnos' : 'Aún no hay alumnos'}
+          text={pool.length ? 'Prueba con otra búsqueda o filtro.' : tab === 'antiguos' ? 'Al poner la fecha de baja a un alumno, aparece aquí con todo su historial.' : 'Da de alta a tu primer alumno.'}
           action={<Link to="/alumnos/nuevo" className="btn-primary"><UserPlus size={16} /> Nuevo alumno</Link>}
         />
       )}

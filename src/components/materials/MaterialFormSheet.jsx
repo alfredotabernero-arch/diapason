@@ -6,6 +6,7 @@ import { useStore } from '../../store/StoreContext.jsx';
 import { MATERIAL_KINDS, itemTitle } from '../../utils/constants.js';
 import { formatBytes, saveFile } from '../../utils/files.js';
 import { fullName } from '../../utils/selectors.js';
+import { activeStudents } from '../../utils/school.js';
 
 const MAX_BYTES = 80 * 1024 * 1024;
 
@@ -119,7 +120,7 @@ export default function MaterialFormSheet({ open, onClose, studentId = '', itemI
             <Field label="Alumno">
               <select className="input" value={form.studentId || ''} onChange={set('studentId')}>
                 <option value="">— Ninguno —</option>
-                {state.students.map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}
+                {activeStudents(state).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}
               </select>
             </Field>
             <Field label="Obra / estudio">

@@ -4,6 +4,7 @@
 import { LIBRARY } from './library.js';
 import { addDays, startOfWeek, todayISO } from '../utils/dates.js';
 import { DEFAULT_TERMS, courseOf, courseRanges, inTerms } from '../utils/courses.js';
+import { DEFAULT_LEVELS } from '../utils/school.js';
 import { DEMO_SUBJECTS, itemTitle, isInstrumentSubject } from '../utils/constants.js';
 
 // Generador pseudoaleatorio con semilla: los datos son siempre los mismos
@@ -142,6 +143,8 @@ function workFor(rand, chosen, recency, lm) {
     .join('. ') + '.';
 }
 
+const LEVEL_ORDER = DEFAULT_LEVELS;
+
 export function buildSeed({ subject = 'Violonchelo', today = todayISO(), settings: prev } = {}) {
   if (!DEMO_SUBJECTS.includes(subject)) subject = 'Violonchelo';
   const lm = !isInstrumentSubject(subject);
@@ -167,8 +170,20 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
       notes: OBSERVACIONES[i],
       since: addDays(today, -sinceWeeks * 7),
       createdAt: addDays(today, -sinceWeeks * 7),
+      // la alumna adulta es «permanente» (no cuenta años del ciclo)
+      permanent: !lm && /Adulto/.test(INSTRUMENT_PLAN.levels[i]),
     };
   });
+  // nivel del curso pasado: el anterior de la lista (para comparar cursos en Estadísticas)
+  {
+    const cur = courseOf(today);
+    const prev = `${Number(cur.slice(0, 4)) - 1}-${cur.slice(0, 4)}`;
+    for (const st of students) {
+      const i = LEVEL_ORDER.indexOf(st.level);
+      const before = /Adulto/.test(st.level) || i <= 0 ? st.level : LEVEL_ORDER[i - 1];
+      st.levelHistory = { [cur]: st.level, ...(st.since <= `${prev.slice(5)}-06-30` ? { [prev]: before } : {}) };
+    }
+  }
   const abilityOf = Object.fromEntries(PEOPLE.map((p) => [p.id, p.ability]));
 
   // ---------- Repertorio asignado

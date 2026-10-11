@@ -20,6 +20,16 @@ export function deviceKind() {
   return 'Navegador';
 }
 
+/** Diapasón puede cerrarse desde dentro en Android y en el programa de Windows */
+export const canExit = () => isNative() || (typeof window !== 'undefined' && !!window.diapasonPC?.salir);
+
+/** Cierra la aplicación (Android o Windows) */
+export async function exitApp() {
+  if (typeof window !== 'undefined' && window.diapasonPC?.salir) { window.diapasonPC.salir(); return; }
+  const { App } = await import('@capacitor/app');
+  App.exitApp();
+}
+
 /** true si se abrió como archivo local en el PC (Diapason.html con doble clic) */
 export const isLocalFile = () => typeof location !== 'undefined' && location.protocol === 'file:';
 

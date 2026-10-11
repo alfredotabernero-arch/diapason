@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarPlus, CalendarX, ChevronLeft, ChevronRight, Undo2 } from 'lucide-react';
+import { ExtraSheet } from '../components/agenda/ChangeSheet.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
@@ -11,7 +12,7 @@ import {
   addDays, addMonths, formatLong, formatShort, formatHours, fromISO, isoWeekday, monthLabel,
   startOfMonth, startOfWeek, todayISO, WEEKDAYS, WEEKDAYS_SHORT,
 } from '../utils/dates.js';
-import { agendaForDate as appointmentsForDate } from '../utils/selectors.js';
+import { agendaForDate as appointmentsForDate, cancelledForDate, fullName } from '../utils/selectors.js';
 
 const VIEWS = [
   { value: 'dia', label: 'Día' },
@@ -96,16 +97,42 @@ function WeekStrip({ state, weekDays, selected, onPick }) {
   );
 }
 
+/** Clases anuladas de un día: tachadas, con su motivo y la opción de recuperarlas */
+function Cancelled({ state, date }) {
+  const { actions } = useStore();
+  const list = cancelledForDate(state, date);
+  if (!list.length) return null;
+  return (
+    <div className="mt-3 space-y-1.5">
+      {list.map(({ change: c, students, time, duration }) => (
+        <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-dashed border-ink-200 px-3.5 py-2.5 text-sm">
+          <span className="w-14 shrink-0 text-center font-display text-lg text-ink-300 line-through tabular-nums">{time}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-ink-400 line-through">{c.group || students.map(fullName).join(', ')}</span>
+            <span className="text-xs text-ink-400">Anulada · {duration} min{c.note ? ` · ${c.note}` : ''}</span>
+          </span>
+          <button className="btn-ghost !px-2 !py-1.5 text-xs" onClick={() => { actions.deleteChange(c.id); actions.notify('Clase recuperada'); }}>
+            <Undo2 size={14} /> Recuperar
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DayView({ state, date, weekDays, onPick }) {
   const appts = appointmentsForDate(state, date);
   const minutes = appts.reduce((n, a) => n + a.duration, 0);
+  const [extra, setExtra] = useState(false);
   return (
     <>
       <WeekStrip state={state} weekDays={weekDays} selected={date} onPick={onPick} />
-      <div className="mt-4 mb-2 flex items-baseline justify-between">
+      <div className="mt-4 mb-2 flex items-baseline justify-between gap-2">
         <h2 className="section-title">{WEEKDAYS[isoWeekday(date) - 1]}</h2>
-        <p className="text-sm text-ink-400">{appts.length} clases · {formatHours(minutes)}</p>
+        <p className="ml-auto text-sm text-ink-400">{appts.length} clases · {formatHours(minutes)}</p>
+        <button className="btn-secondary !px-2.5 !py-1.5 text-xs" onClick={() => setExtra(true)} title="Añadir una clase solo este día"><CalendarPlus size={15} /> Clase puntual</button>
       </div>
+      <ExtraSheet open={extra} onClose={() => setExtra(false)} date={date} />
       {appts.length ? (
         <ol className="relative space-y-2.5 border-l-2 border-dashed border-ink-100 pl-3 ml-1">
           {appts.map((a, i) => (
@@ -118,6 +145,7 @@ function DayView({ state, date, weekDays, onPick }) {
       ) : (
         <div className="card"><EmptyState icon={CalendarX} title="Sin clases este día" text="El horario se genera a partir del horario semanal de cada alumno." /></div>
       )}
+      <Cancelled state={state} date={date} />
     </>
   );
 }

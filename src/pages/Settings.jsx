@@ -5,8 +5,12 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Field from '../components/ui/Field.jsx';
 import Sheet, { ConfirmDialog } from '../components/ui/Sheet.jsx';
 import Logo from '../components/brand/Logo.jsx';
+import SchoolLogo from '../components/brand/SchoolLogo.jsx';
+import LevelsCard from '../components/settings/LevelsCard.jsx';
+import CourseStartSheet from '../components/students/CourseStartSheet.jsx';
+import { imageToDataURL } from '../utils/images.js';
 import { APP_CREDIT, APP_VERSION } from '../config.js';
-import { isNative } from '../utils/platform.js';
+import { canExit } from '../utils/platform.js';
 import { requestExit } from '../utils/backStack.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { DEMO_SUBJECTS, SUBJECT_GROUPS, isInstrumentSubject } from '../utils/constants.js';
@@ -32,7 +36,9 @@ function SubjectSelect({ value, onChange, id }) {
 export default function Settings() {
   const { state, actions, paso } = useStore();
   const location = useLocation();
-  const [profile, setProfile] = useState({ teacherName: state.settings.teacherName, school: state.settings.school, subject: state.settings.subject });
+  const [profile, setProfile] = useState({ teacherName: state.settings.teacherName, school: state.settings.school, locality: state.settings.locality || '', subject: state.settings.subject });
+  const [courseSheet, setCourseSheet] = useState(false);
+  const logoRef = useRef();
   const [terms, setTerms] = useState(state.settings.terms || DEFAULT_TERMS);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -80,7 +86,7 @@ export default function Settings() {
     try {
       const restored = await restoreAttachments(pending.attachments, pending.data.materials || []);
       actions.replaceState(pending.data);
-      setProfile({ teacherName: pending.data.settings?.teacherName || '', school: pending.data.settings?.school || '', subject: pending.data.settings?.subject || 'Violonchelo' });
+      setProfile({ teacherName: pending.data.settings?.teacherName || '', school: pending.data.settings?.school || '', locality: pending.data.settings?.locality || '', subject: pending.data.settings?.subject || 'Violonchelo' });
       setTerms(pending.data.settings?.terms || DEFAULT_TERMS);
       actions.notify(`Datos recibidos ✓${restored ? ` (${restored} adjuntos)` : ''}`);
       setPending(null);
@@ -104,9 +110,14 @@ export default function Settings() {
             <Field label="Nombre del profesor">
               <input id="teacher-name" className="input" value={profile.teacherName} onChange={(e) => setProfile({ ...profile, teacherName: e.target.value })} />
             </Field>
-            <Field label="Centro / escuela">
-              <input id="school" className="input" value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} />
-            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <Field label="Centro / escuela">
+                <input id="school" className="input" value={profile.school} onChange={(e) => setProfile({ ...profile, school: e.target.value })} />
+              </Field>
+              <Field label="Localidad" hint="Para «En …, a fecha» en las hojas de notas">
+                <input id="locality" className="input" value={profile.locality} onChange={(e) => setProfile({ ...profile, locality: e.target.value })} placeholder="Madrid" />
+              </Field>
+            </div>
             <Field label="Asignatura que impartes" hint="Cada copia de Diapasón es de un profesor y una asignatura">
               <SubjectSelect id="subject" value={profile.subject} onChange={(subject) => setProfile({ ...profile, subject })} />
             </Field>
@@ -137,6 +148,33 @@ export default function Settings() {
               <button className="btn-primary" onClick={() => { actions.saveSettings({ terms }); actions.notify('Trimestres guardados'); }}>Guardar trimestres</button>
               <button className="btn-ghost" onClick={() => setTerms(DEFAULT_TERMS)}>Valores por defecto</button>
             </div>
+            <div className="border-t border-ink-100 pt-3">
+              <p className="text-sm text-ink-500">Al empezar cada curso, Diapasón propone dar de baja a quien termina su 6.º año y subir de nivel a los demás.</p>
+              <button className="btn-secondary mt-2" onClick={() => setCourseSheet(true)}>Empezar el {courseLabel(course).toLowerCase()}…</button>
+            </div>
+          </section>
+
+          <LevelsCard />
+
+          <section className="card space-y-3 p-4">
+            <div>
+              <h2 className="font-display text-xl">Logo de la escuela</h2>
+              <p className="text-xs text-ink-400">Sale en el encabezado de las hojas de calificaciones. Mientras la escuela no tenga uno, se usa este genérico.</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl border border-ink-100 bg-white p-1.5">
+                <SchoolLogo src={state.settings.schoolLogo} className="h-full w-full" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <button className="btn-secondary" onClick={() => logoRef.current.click()}>Cambiar logo…</button>
+                {state.settings.schoolLogo && <button className="btn-ghost !justify-start" onClick={() => { actions.saveSettings({ schoolLogo: null }); actions.notify('Logo genérico'); }}>Volver al genérico</button>}
+              </div>
+            </div>
+            <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={async (e) => {
+              const f = e.target.files?.[0]; e.target.value = '';
+              if (!f) return;
+              try { actions.saveSettings({ schoolLogo: await imageToDataURL(f) }); actions.notify('Logo de la escuela guardado'); } catch (err) { setError(err.message); }
+            }} />
           </section>
         </div>
 
@@ -218,7 +256,7 @@ export default function Settings() {
             </div>
           </section>
 
-          {isNative() && (
+          {canExit() && (
             <button className="btn-secondary w-full" onClick={requestExit}>
               <LogOut size={18} /> Salir de Diapasón
             </button>
@@ -261,6 +299,8 @@ export default function Settings() {
           </div>
         )}
       </Sheet>
+
+      <CourseStartSheet open={courseSheet} onClose={() => setCourseSheet(false)} />
 
       <ConfirmDialog
         open={confirmDemo}

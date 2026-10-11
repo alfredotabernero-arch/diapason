@@ -6,6 +6,7 @@ import { useStore } from '../../store/StoreContext.jsx';
 import { PRIORITIES, PRIORITY_STYLE, itemTitle } from '../../utils/constants.js';
 import { addDays, todayISO } from '../../utils/dates.js';
 import { byId, fullName } from '../../utils/selectors.js';
+import { activeStudents } from '../../utils/school.js';
 
 const EMPTY = { title: '', description: '', priority: 'Media', dueDate: '', studentId: '', itemId: '' };
 
@@ -72,7 +73,7 @@ export default function TaskFormSheet({ open, onClose, task, studentId }) {
           <Field label="Alumno">
             <select className="input" value={form.studentId} onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value, itemId: '' }))}>
               <option value="">Elige un alumno…</option>
-              {state.students.map((s) => (
+              {activeStudents(state).map((s) => (
                 <option key={s.id} value={s.id}>{fullName(s)} · {s.instrument}</option>
               ))}
             </select>

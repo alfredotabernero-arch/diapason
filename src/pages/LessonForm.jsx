@@ -10,6 +10,7 @@ import { ACTIVE_STATUSES, ATTENDANCE, ATTENDANCE_STYLE, RESULTS, RESULT_STYLE, i
 import { formatLong, todayISO } from '../utils/dates.js';
 import { appointmentsForDate, byId, fullName, studentAssignments } from '../utils/selectors.js';
 import { useGoBack } from '../utils/navigation.js';
+import { activeStudents } from '../utils/school.js';
 
 function phraseFor(item) {
   if (item.type === 'escala') return `Escala de ${itemTitle(item)} a ${item.targetBpm} BPM`;
@@ -51,11 +52,11 @@ export default function LessonForm() {
   });
 
   // Modo grupo: alumnos del grupo y su asistencia/valoración individual
-  const groupStudents = useMemo(() => (groupName ? state.students.filter((s) => s.group === groupName) : []), [groupName, state.students]);
+  const groupStudents = useMemo(() => (groupName ? activeStudents(state).filter((s) => s.group === groupName) : []), [groupName, state.students]);
   const [roster, setRoster] = useState(() => {
     if (!groupName) return {};
     const out = {};
-    for (const s of state.students.filter((x) => x.group === groupName)) {
+    for (const s of activeStudents(state).filter((x) => x.group === groupName)) {
       const prev = state.lessons.find((l) => l.studentId === s.id && l.date === (params.get('fecha') || todayISO()) && l.time === params.get('hora'));
       out[s.id] = { attendance: prev?.attendance || 'Asistió', result: prev?.result || 'Bien', lessonId: prev?.id || null };
     }
@@ -169,7 +170,7 @@ export default function LessonForm() {
               <Field label="Alumno">
                 <select className="input" value={form.studentId} onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value, itemIds: [] }))}>
                   <option value="">Elige un alumno…</option>
-                  {state.students.map((s) => <option key={s.id} value={s.id}>{fullName(s)}{s.group ? ` · ${s.group}` : ''}</option>)}
+                  {activeStudents(state).map((s) => <option key={s.id} value={s.id}>{fullName(s)}{s.group ? ` · ${s.group}` : ''}</option>)}
                 </select>
               </Field>
             )}

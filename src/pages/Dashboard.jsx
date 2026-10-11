@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { isNative } from '../utils/platform.js';
+import { canExit } from '../utils/platform.js';
 import { requestExit } from '../utils/backStack.js';
 import { deviceName, toDevice, hasPending, otherKind } from '../utils/paso.js';
 import { useEnviarDatos } from '../utils/useTransfer.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarCheck, ChevronRight, ClipboardPen, Clock, History, ListTodo, LogOut, Music2, Send, Settings, ShieldAlert, Users } from 'lucide-react';
 import Logo from '../components/brand/Logo.jsx';
+import CourseStartSheet from '../components/students/CourseStartSheet.jsx';
+import { courseLabel, courseOf } from '../utils/courses.js';
 import StatCard from '../components/ui/StatCard.jsx';
 import AppointmentCard from '../components/agenda/AppointmentCard.jsx';
 import TaskItem from '../components/tasks/TaskItem.jsx';
@@ -17,6 +19,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import { ACTIVE_STATUSES, instrumentStyle, itemTitle } from '../utils/constants.js';
 import { daysBetween, endTime, formatLong, nowMinutes, relativeDay, timeToMinutes, todayISO } from '../utils/dates.js';
 import { agendaForDate, byId, fullName, nextAppointment, sortTasks } from '../utils/selectors.js';
+import { activeStudents } from '../utils/school.js';
 
 function greeting() {
   const h = new Date().getHours();
@@ -37,6 +40,8 @@ export default function Dashboard() {
   const { send, busy: sending } = useEnviarDatos();
   const navigate = useNavigate();
   const [editingTask, setEditingTask] = useState(null);
+  const [courseSheet, setCourseSheet] = useState(false);
+  const newCourse = state.settings.courseOpened && state.settings.courseOpened !== courseOf() && state.students.length > 0;
   const today = todayISO();
   const students = byId(state.students);
   const items = byId(state.items);
@@ -77,7 +82,7 @@ export default function Dashboard() {
             <Link to="/ajustes" className="btn-ghost !p-2" aria-label="Ajustes">
               <Settings size={21} />
             </Link>
-            {isNative() && (
+            {canExit() && (
               <button onClick={requestExit} className="btn-ghost !p-2" aria-label="Salir de Diapasón" title="Salir">
                 <LogOut size={21} />
               </button>
@@ -87,6 +92,13 @@ export default function Dashboard() {
         <p className="mt-4 md:mt-0 text-xs font-semibold uppercase tracking-[0.14em] text-brass-500">{formatLong(today)} · {subject}</p>
         <h1 className="font-display text-[1.9rem] md:text-[2.4rem] leading-tight">{greeting()}, {firstName}</h1>
       </header>
+      {newCourse && (
+        <section className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-brass-200 bg-brass-50 px-4 py-3 animate-fade-up">
+          <p className="min-w-0 flex-1 text-sm text-ink-700"><b>Empieza el {courseLabel(courseOf()).toLowerCase()}.</b> Revisa quién termina su 6.º año y quién sube de nivel.</p>
+          <button className="btn-primary !py-2" onClick={() => setCourseSheet(true)}>Revisar</button>
+        </section>
+      )}
+      <CourseStartSheet open={courseSheet} onClose={() => setCourseSheet(false)} />
 
       {unsent && (
         <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-100/70 px-4 py-2.5 text-sm text-amber-900">
@@ -152,7 +164,7 @@ export default function Dashboard() {
           {/* Tarjetas resumen */}
           <section className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatCard icon={CalendarCheck} label="Clases hoy" value={todayAppts.length} hint={todayAppts.length ? `${todayAppts.reduce((n, a) => n + a.duration, 0)} min de clase` : 'Día libre'} tone="brass" to="/agenda" delay={40} />
-            <StatCard icon={Users} label="Alumnos" value={state.students.length} hint={subject} tone="ink" to="/alumnos" delay={80} />
+            <StatCard icon={Users} label="Alumnos" value={activeStudents(state).length} hint={subject} tone="ink" to="/alumnos" delay={80} />
             <StatCard icon={Music2} label="Obras activas" value={activeObras.length} hint="iniciadas, en estudio o consolidadas" tone="violet" to="/repertorio" delay={120} />
             <StatCard icon={ListTodo} label="Tareas pendientes" value={pendingTasks.length} hint={overdue ? `${overdue} vencidas` : 'Al día'} tone={overdue ? 'rose' : 'emerald'} to="/tareas" delay={160} />
           </section>

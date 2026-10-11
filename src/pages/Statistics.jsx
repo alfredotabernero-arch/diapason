@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { BookOpen, CalendarRange, Clock, Music2, Trophy, Users } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -15,9 +15,12 @@ import {
   ACTIVE_STATUSES, ATTENDANCE, ATTENDANCE_STYLE, REPERTOIRE_TYPES, RESULTS, RESULT_STYLE, STATUSES, STATUS_STYLE, attended, instrumentStyle, itemTitle,
 } from '../utils/constants.js';
 import { formatHours } from '../utils/dates.js';
+import { courseLabel, courseOf, finalGrade, shiftCourse } from '../utils/courses.js';
+import { GRADE_ABBR, TERMS, gradeLabel } from '../utils/constants.js';
 import {
   byId, fullName, monthlyEvolution, studentAssignments, studentMonthlyResults, studentStats, teacherSessions, weeklyMinutes, weeklySlots,
 } from '../utils/selectors.js';
+import { activeStudents, altaOf, isActive, levelIn, levelIndex } from '../utils/school.js';
 
 const AXIS = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: '#6E7EA3' } };
 const TOOLTIP = { contentStyle: { borderRadius: 12, border: '1px solid #E3E7F0', fontSize: 12, boxShadow: '0 8px 24px -8px rgba(20,26,44,.2)' } };
@@ -52,9 +55,9 @@ export default function Statistics() {
       <Segmented
         value={view}
         onChange={(v) => setParams({ vista: v }, { replace: true })}
-        options={[{ value: 'profesor', label: 'Profesor' }, { value: 'alumno', label: 'Por alumno' }]}
+        options={[{ value: 'profesor', label: 'Profesor' }, { value: 'cursos', label: 'Por cursos' }, { value: 'alumno', label: 'Por alumno' }]}
       />
-      <div key={view} className="mt-4 animate-fade-up">{view === 'profesor' ? <TeacherStats /> : <StudentStats />}</div>
+      <div key={view} className="mt-4 animate-fade-up">{view === 'profesor' ? <TeacherStats /> : view === 'cursos' ? <CourseStats /> : <StudentStats />}</div>
     </>
   );
 }
@@ -70,11 +73,12 @@ function TeacherStats() {
   const obras = state.assignments.filter((a) => items.get(a.itemId)?.type === 'obra');
   const inProcess = obras.filter((a) => ACTIVE_STATUSES.includes(a.status)).length;
 
-  const levelNames = [...new Set(state.students.map((s) => s.level))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-  const byLevel = levelNames.map((l) => ({ name: l, alumnos: state.students.filter((s) => s.level === l).length }));
-  const instrumentNames = [...new Set(state.students.map((s) => s.instrument))];
+  const act = activeStudents(state);
+  const levelNames = [...new Set(act.map((s) => s.level))].sort((a, b) => levelIndex(state.settings, a) - levelIndex(state.settings, b) || a.localeCompare(b, 'es', { numeric: true }));
+  const byLevel = levelNames.map((l) => ({ name: l, alumnos: act.filter((s) => s.level === l).length }));
+  const instrumentNames = [...new Set(act.map((s) => s.instrument))];
   const byInstrument = instrumentNames.length > 1
-    ? instrumentNames.map((i) => ({ name: i, alumnos: state.students.filter((s) => s.instrument === i).length, fill: instrumentStyle(i).hex })).sort((a, b) => b.alumnos - a.alumnos)
+    ? instrumentNames.map((i) => ({ name: i, alumnos: act.filter((s) => s.instrument === i).length, fill: instrumentStyle(i).hex })).sort((a, b) => b.alumnos - a.alumnos)
     : null;
   const sessions = teacherSessions(state);
   const attendanceDist = ATTENDANCE.map((a) => ({ name: a, value: state.lessons.filter((l) => (l.attendance || 'Asistió') === a).length }));
@@ -84,7 +88,7 @@ function TeacherStats() {
 
   const perStudent = useMemo(
     () =>
-      state.students
+      act
         .map((s) => {
           const st = studentStats(state, s.id);
           return { id: s.id, name: `${s.firstName} ${s.lastName.split(' ')[0][0]}.`, progreso: st.progresoMedio, fill: '#4D5D84' };
@@ -100,7 +104,7 @@ function TeacherStats() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={Users} label="Alumnos" value={state.students.length} tone="ink" />
+        <StatCard icon={Users} label="Alumnos" value={act.length} tone="ink" />
         <StatCard icon={CalendarRange} label="Clases por semana" value={weeklySlots(state)} hint={`${formatHours(weeklyMinutes(state))} de docencia`} tone="brass" />
         <StatCard icon={Music2} label="Obras en proceso" value={inProcess} hint={`${obras.filter((a) => a.status === 'Terminada').length} terminadas`} tone="violet" />
         <StatCard icon={Clock} label="Clases impartidas" value={sessions.length} hint={formatHours(sessions.reduce((n, l) => n + Number(l.duration), 0))} tone="teal" />
@@ -249,7 +253,8 @@ function TeacherStats() {
 function StudentStats() {
   const { state } = useStore();
   const [params, setParams] = useSearchParams();
-  const studentId = params.get('alumno') || state.students[0]?.id;
+  const ordered = [...state.students].sort((a, b) => Number(isActive(b)) - Number(isActive(a)));
+  const studentId = params.get('alumno') || ordered[0]?.id;
   const student = state.students.find((s) => s.id === studentId);
   if (!student) return <p className="text-ink-400">No hay alumnos.</p>;
 
@@ -261,7 +266,7 @@ function StudentStats() {
   return (
     <div className="space-y-4">
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar">
-        {state.students.map((s) => (
+        {ordered.map((s) => (
           <button
             key={s.id}
             onClick={() => setParams({ vista: 'alumno', alumno: s.id }, { replace: true })}
@@ -284,6 +289,7 @@ function StudentStats() {
         <StatCard icon={BookOpen} label="Estudios activos" value={stats.estudiosActivos} tone="brass" />
         <StatCard icon={Clock} label="Horas estimadas" value={formatHours(stats.horasEstimadas)} hint={`${formatHours(stats.horasClase)} de clase`} tone="sky" />
       </div>
+      <Trayectoria student={student} />
       <div className="grid gap-4 lg:grid-cols-2">
 
       <ChartCard title="Clases por mes" subtitle={`${stats.clases} clases · ${stats.asistencia ?? '—'} % de asistencia · valoración media ${stats.mediaResultado ? stats.mediaResultado.toFixed(1).replace('.', ',') : '—'} / 5`}>
@@ -350,5 +356,210 @@ function StudentStats() {
       </ChartCard>
       </div>
     </div>
+  );
+}
+
+/* ======================= Por cursos ======================= */
+
+const CMP = { este: '#2D3853', antes: '#C9B48A' };
+const fmt1 = (v) => (v === null || v === undefined ? '—' : v.toFixed(1).replace('.', ','));
+const mean = (l) => { const v = l.filter((x) => x !== null && x !== undefined && x !== ''); return v.length ? v.reduce((a, b) => a + Number(b), 0) / v.length : null; };
+const ESCALA = ['Insuficiente', 'Suficiente', 'Bien', 'Notable', 'Sobresaliente'];
+
+/** Cursos con algún dato (notas, clases o altas), del más reciente al más antiguo */
+function coursesWithData(state) {
+  const set = new Set([courseOf()]);
+  state.grades.forEach((g) => set.add(g.course));
+  state.lessons.forEach((l) => set.add(courseOf(l.date)));
+  return [...set].sort().reverse();
+}
+
+/** Resumen de un curso: alumnos, clases, asistencia, notas medias, reparto de calificaciones y niveles */
+function courseSummary(state, course) {
+  const y = Number(course.slice(0, 4));
+  const from = `${y}-09-01`, to = `${y + 1}-08-31`;
+  const grades = state.grades.filter((g) => g.course === course);
+  const lessons = state.lessons.filter((l) => l.date >= from && l.date <= to);
+  const ids = new Set([...grades.map((g) => g.studentId), ...lessons.map((l) => l.studentId)]);
+  const students = state.students.filter((s) => ids.has(s.id) || (altaOf(s) <= to && isActive(s, from) && course <= courseOf()));
+  const sessions = teacherSessions(state, lessons);
+  const att = lessons.length ? Math.round((lessons.filter(attended).length / lessons.length) * 100) : null;
+  const medias = Object.fromEntries([...TERMS.map((t) => [t.key, mean(grades.map((g) => g[t.key]))]), ['final', mean(grades.map(finalGrade))]]);
+  // nota de referencia de cada alumno: la final o, si aún no hay, la del último trimestre con nota
+  const ref = (g) => finalGrade(g) ?? g?.t3 ?? g?.t2 ?? g?.t1 ?? null;
+  const refs = grades.map(ref).filter((v) => v !== null);
+  const reparto = Object.fromEntries(ESCALA.map((l) => [l, refs.filter((v) => gradeLabel(v) === l).length]));
+  const niveles = {};
+  for (const s of students) {
+    const l = levelIn(s, course) || '—';
+    (niveles[l] = niveles[l] || { n: 0, notas: [] }).n += 1;
+    const g = grades.find((x) => x.studentId === s.id);
+    if (ref(g) !== null) niveles[l].notas.push(ref(g));
+  }
+  return { course, students: students.length, sesiones: sessions.length, horas: sessions.reduce((n, l) => n + Number(l.duration || 0), 0), asistencia: att, medias, reparto, niveles, conNotas: refs.length };
+}
+
+function Comparado({ label, este, antes, unidad = '' }) {
+  const d = este !== null && antes !== null && antes !== undefined ? este - antes : null;
+  return (
+    <div className="card p-3">
+      <p className="text-xs font-semibold text-ink-400">{label}</p>
+      <p className="font-display text-2xl leading-tight tabular-nums">{este ?? '—'}{este !== null && unidad}</p>
+      <p className="text-xs text-ink-400">
+        {antes === null || antes === undefined ? 'Sin datos del curso anterior' : <>Curso anterior: {antes}{unidad}{d ? <b className={d > 0 ? 'ml-1 text-emerald-600' : 'ml-1 text-rose-600'}>{d > 0 ? '▲' : '▼'} {Math.abs(d)}{unidad}</b> : null}</>}
+      </p>
+    </div>
+  );
+}
+
+function CourseStats() {
+  const { state } = useStore();
+  const cursos = coursesWithData(state);
+  const [course, setCourse] = useState(cursos[0]);
+  const prev = shiftCourse(course, -1);
+  const A = courseSummary(state, course);
+  const hayAntes = cursos.includes(prev);
+  const B = hayAntes ? courseSummary(state, prev) : null;
+  const corto = (c) => c.slice(2, 4) + '/' + c.slice(7, 9);
+  const notas = [...TERMS.map((t) => ({ k: t.short, key: t.key })), { k: 'Final', key: 'final' }].map(({ k, key }) => ({
+    k, este: A.medias[key] !== null ? Math.round(A.medias[key] * 10) / 10 : null, antes: B && B.medias[key] !== null ? Math.round(B.medias[key] * 10) / 10 : null,
+  }));
+  const reparto = ESCALA.map((l) => ({ k: GRADE_ABBR[l], nombre: l, este: A.reparto[l], antes: B ? B.reparto[l] : null }));
+  const niveles = [...new Set([...Object.keys(A.niveles), ...Object.keys(B?.niveles || {})])].sort((a, b) => levelIndex(state.settings, a) - levelIndex(state.settings, b));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select className="input !w-auto" value={course} onChange={(e) => setCourse(e.target.value)} aria-label="Curso">
+          {cursos.map((c) => <option key={c} value={c}>{courseLabel(c)}</option>)}
+        </select>
+        <span className="text-sm text-ink-400">{hayAntes ? `comparado con el ${courseLabel(prev).toLowerCase()}` : 'Las comparaciones aparecen a partir del segundo curso con datos.'}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Comparado label="Alumnos" este={A.students} antes={B?.students} />
+        <Comparado label="Clases impartidas" este={A.sesiones} antes={B?.sesiones} />
+        <Comparado label="Horas de clase" este={Math.round(A.horas / 60)} antes={B ? Math.round(B.horas / 60) : null} unidad=" h" />
+        <Comparado label="Asistencia" este={A.asistencia} antes={B?.asistencia} unidad=" %" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Nota media por trimestre" subtitle={`${A.conNotas} alumnos con notas · de 1 a 10`}>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={notas} margin={{ top: 18, right: 4, left: -28, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#E3E7F0" />
+                <XAxis dataKey="k" {...AXIS} />
+                <YAxis {...AXIS} domain={[0, 10]} ticks={[0, 5, 10]} />
+                <Tooltip {...TOOLTIP} formatter={(v, n) => [fmt1(v), n === 'este' ? courseLabel(course) : courseLabel(prev)]} />
+                {hayAntes && <Bar dataKey="antes" fill={CMP.antes} radius={[4, 4, 0, 0]} maxBarSize={26} />}
+                <Bar dataKey="este" fill={CMP.este} radius={[4, 4, 0, 0]} maxBarSize={26}>
+                  <LabelList dataKey="este" position="top" formatter={fmt1} style={{ fontSize: 11, fill: '#2D3853', fontWeight: 600 }} />
+                </Bar>
+                {hayAntes && <Legend formatter={(v) => (v === 'este' ? corto(course) : corto(prev))} wrapperStyle={{ fontSize: 12 }} />}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+        <ChartCard title="Calificaciones" subtitle="Nota final, o la del último trimestre si aún no hay final">
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={reparto} margin={{ top: 18, right: 4, left: -28, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#E3E7F0" />
+                <XAxis dataKey="k" {...AXIS} />
+                <YAxis {...AXIS} allowDecimals={false} />
+                <Tooltip {...TOOLTIP} labelFormatter={(k) => ESCALA.find((l) => GRADE_ABBR[l] === k)} formatter={(v, n) => [`${v} alumnos`, n === 'este' ? courseLabel(course) : courseLabel(prev)]} />
+                {hayAntes && <Bar dataKey="antes" fill={CMP.antes} radius={[4, 4, 0, 0]} maxBarSize={26} />}
+                <Bar dataKey="este" fill={CMP.este} radius={[4, 4, 0, 0]} maxBarSize={26}>
+                  <LabelList dataKey="este" position="top" style={{ fontSize: 11, fill: '#2D3853', fontWeight: 600 }} />
+                </Bar>
+                {hayAntes && <Legend formatter={(v) => (v === 'este' ? corto(course) : corto(prev))} wrapperStyle={{ fontSize: 12 }} />}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+      </div>
+      <ChartCard title="Por nivel" subtitle="Alumnos y nota media de cada nivel (el que tenían en ese curso)">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-ink-400">
+                <th className="py-1.5">Nivel</th>
+                <th className="text-center">Alumnos</th>{hayAntes && <th className="text-center text-ink-300">antes</th>}
+                <th className="text-center">Media</th>{hayAntes && <th className="text-center text-ink-300">antes</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {niveles.map((l) => {
+                const a = A.niveles[l], b = B?.niveles[l];
+                return (
+                  <tr key={l} className="border-t border-ink-50">
+                    <td className="py-1.5 font-semibold text-ink-700">{l}</td>
+                    <td className="text-center tabular-nums">{a?.n || '—'}</td>{hayAntes && <td className="text-center tabular-nums text-ink-400">{b?.n || '—'}</td>}
+                    <td className="text-center tabular-nums">{fmt1(a ? mean(a.notas) : null)}</td>{hayAntes && <td className="text-center tabular-nums text-ink-400">{fmt1(b ? mean(b.notas) : null)}</td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
+    </div>
+  );
+}
+
+/* ======================= Trayectoria de un alumno ======================= */
+
+function Trayectoria({ student }) {
+  const { state } = useStore();
+  const grades = state.grades.filter((g) => g.studentId === student.id).sort((a, b) => (a.course < b.course ? -1 : 1));
+  if (!grades.length) return null;
+  const corto = (c) => c.slice(2, 4) + '/' + c.slice(7, 9);
+  const puntos = grades.flatMap((g) => TERMS.map((t) => ({ k: `${corto(g.course)} ${t.short}`, nota: g[t.key] ?? null }))).filter((p, i, arr) => p.nota !== null || arr.slice(i).some((x) => x.nota !== null));
+  const filas = grades.map((g) => {
+    const y = Number(g.course.slice(0, 4));
+    const from = `${y}-09-01`, to = `${y + 1}-08-31`;
+    const ls = state.lessons.filter((l) => l.studentId === student.id && l.date >= from && l.date <= to);
+    const term = state.assignments.filter((a) => a.studentId === student.id && a.status === 'Terminada' && a.updatedAt >= from && a.updatedAt <= to).length;
+    return { g, nivel: levelIn(student, g.course), clases: ls.filter(attended).length, asis: ls.length ? Math.round((ls.filter(attended).length / ls.length) * 100) : null, term };
+  });
+  return (
+    <ChartCard title="Trayectoria" subtitle={`Notas de ${grades.length === 1 ? 'su curso' : `sus ${grades.length} cursos`} en la escuela`}>
+      {puntos.length > 1 && (
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={puntos} margin={{ top: 14, right: 10, left: -28, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="#E3E7F0" />
+              <XAxis dataKey="k" {...AXIS} interval={0} tick={{ fontSize: 10, fill: '#6E7EA3' }} />
+              <YAxis {...AXIS} domain={[0, 10]} ticks={[0, 5, 10]} />
+              <Tooltip {...TOOLTIP} formatter={(v) => [`${v} · ${gradeLabel(v)}`, 'Nota']} />
+              <Line type="monotone" dataKey="nota" stroke="#2D3853" strokeWidth={2.5} dot={{ r: 4, fill: '#B07F30', stroke: '#fff', strokeWidth: 2 }} connectNulls>
+                <LabelList dataKey="nota" position="top" style={{ fontSize: 11, fill: '#2D3853', fontWeight: 600 }} />
+              </Line>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-ink-400">
+              <th className="py-1.5">Curso</th><th>Nivel</th>{TERMS.map((t) => <th key={t.key} className="text-center">{t.short}</th>)}<th className="text-center">Final</th><th className="text-center">Clases</th><th className="text-center">Asist.</th><th className="text-center">Obras</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map(({ g, nivel, clases, asis, term }) => (
+              <tr key={g.course} className="border-t border-ink-50">
+                <td className="py-1.5 font-semibold text-ink-700 whitespace-nowrap">{corto(g.course)}</td>
+                <td className="whitespace-nowrap text-ink-500">{nivel}</td>
+                {TERMS.map((t) => <td key={t.key} className="text-center tabular-nums">{g[t.key] ?? '—'}</td>)}
+                <td className="text-center font-semibold tabular-nums">{finalGrade(g) ?? '—'}</td>
+                <td className="text-center tabular-nums">{clases}</td>
+                <td className="text-center tabular-nums">{asis === null ? '—' : `${asis} %`}</td>
+                <td className="text-center tabular-nums">{term}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </ChartCard>
   );
 }

@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { buildSeed } from '../data/seed.js';
 import { todayISO } from '../utils/dates.js';
 import { uid, STATUS_DEFAULT_PROGRESS, isInstrumentSubject } from '../utils/constants.js';
-import { DEFAULT_TERMS } from '../utils/courses.js';
+import { DEFAULT_TERMS, courseOf } from '../utils/courses.js';
+import { DEFAULT_LEVELS } from '../utils/school.js';
 import { deleteFile } from '../utils/files.js';
 import { readPaso, writePaso } from '../utils/paso.js';
 
@@ -17,8 +18,11 @@ export function migrate(data) {
   const guess = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Violonchelo';
   return {
     ...data,
-    settings: { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, ...data.settings },
-    students: (data.students || []).map((s) => ({ group: '', ...s })),
+    // 1.5: niveles editables, localidad y logo de la escuela, y curso ya empezado (para el aviso de inicio de curso)
+    settings: { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, levels: DEFAULT_LEVELS, locality: '', schoolLogo: null, courseOpened: courseOf(), ...data.settings },
+    // 1.5: alta (since), baja (leftAt), alumno permanente, corrección del año en la escuela y nivel de cada curso
+    students: (data.students || []).map((s) => ({ group: '', leftAt: null, permanent: false, yearAdjust: 0, ...s, levelHistory: { [courseOf()]: s.level, ...(s.levelHistory || {}) } })),
+    changes: data.changes || [],
     lessons: (data.lessons || []).map((l) => ({ attendance: 'Asistió', ...l })),
     grades: data.grades || [],
     notes: data.notes || [],
@@ -36,7 +40,7 @@ function load() {
   } catch {
     /* almacenamiento no disponible: se usan los datos de ejemplo */
   }
-  return buildSeed();
+  return migrate(buildSeed());
 }
 
 function reducer(state, action) {
@@ -64,6 +68,7 @@ function reducer(state, action) {
         notes: state.notes.filter(keep),
         materials: state.materials.filter(keep),
         grades: state.grades.filter(keep),
+        changes: (state.changes || []).map((c) => ({ ...c, studentIds: c.studentIds.filter((x) => x !== action.id) })).filter((c) => c.studentIds.length),
       };
     }
     case 'removeItem': {
@@ -122,9 +127,48 @@ export function StoreProvider({ children }) {
     return {
       notify,
       saveStudent(data) {
-        const item = data.id ? data : { ...data, id: uid('st'), since: todayISO(), createdAt: todayISO() };
+        const base = data.id ? data : { since: todayISO(), leftAt: null, permanent: false, yearAdjust: 0, ...data, id: uid('st'), createdAt: todayISO() };
+        // el nivel de este curso queda apuntado para las estadísticas por curso
+        const item = { ...base, levelHistory: { ...(base.levelHistory || {}), [courseOf()]: base.level } };
         upsert('students', item);
         return item;
+      },
+      /** Cambio puntual de la agenda: anular o mover una clase un día, o añadir una clase suelta */
+      saveChange(data) {
+        const item = data.id ? data : { ...data, id: uid('ch'), createdAt: todayISO() };
+        upsert('changes', item);
+        return item;
+      },
+      deleteChange(id) {
+        dispatch({ type: 'remove', collection: 'changes', id });
+      },
+      /**
+       * Guarda la lista de niveles. renames: { viejo: nuevo } se aplica a los alumnos (también a su historial).
+       */
+      saveLevels(levels, renames = {}) {
+        const st = stateRef.current;
+        const ren = (l) => renames[l] ?? l;
+        const students = st.students.map((s) => ({
+          ...s,
+          level: ren(s.level),
+          levelHistory: Object.fromEntries(Object.entries(s.levelHistory || {}).map(([c, l]) => [c, ren(l)])),
+        }));
+        dispatch({ type: 'replace', state: { ...st, students, settings: { ...st.settings, levels } } });
+      },
+      /**
+       * Empezar el curso: da de baja a los que terminan (leftAt) y sube de nivel a los elegidos.
+       * bajas: [ids] · niveles: { id: nivelNuevo } · leftAt: fecha de baja
+       */
+      startCourse({ course, bajas = [], niveles = {}, leftAt }) {
+        const st = stateRef.current;
+        const students = st.students.map((s) => {
+          let n = s;
+          if (bajas.includes(s.id)) n = { ...n, leftAt };
+          else if (niveles[s.id]) n = { ...n, level: niveles[s.id] };
+          if (!n.leftAt || n.leftAt >= `${course.slice(0, 4)}-09-01`) n = { ...n, levelHistory: { ...(n.levelHistory || {}), [course]: n.level } };
+          return n;
+        });
+        dispatch({ type: 'replace', state: { ...st, students, settings: { ...st.settings, courseOpened: course } } });
       },
       deleteStudent(id) {
         dispatch({ type: 'removeStudent', id });
@@ -227,7 +271,7 @@ export function StoreProvider({ children }) {
       },
       resetDemo(subject) {
         const { settings } = stateRef.current;
-        dispatch({ type: 'replace', state: buildSeed({ subject: subject || settings.subject, settings: { teacherName: settings.teacherName, school: settings.school, terms: settings.terms } }) });
+        dispatch({ type: 'replace', state: migrate(buildSeed({ subject: subject || settings.subject, settings: { teacherName: settings.teacherName, school: settings.school, terms: settings.terms, locality: settings.locality, schoolLogo: settings.schoolLogo, levels: settings.levels } })) });
       },
       /** Empezar de cero: borra alumnos y todo su seguimiento; conserva perfil, asignatura, trimestres y biblioteca */
       clearAll() {
@@ -237,7 +281,7 @@ export function StoreProvider({ children }) {
           type: 'replace',
           state: {
             ...st,
-            students: [], assignments: [], tasks: [], lessons: [], materials: [], notes: [], grades: [],
+            students: [], assignments: [], tasks: [], lessons: [], materials: [], notes: [], grades: [], changes: [],
             items: st.items.filter((i) => i.instrument === st.settings.subject),
           },
         });

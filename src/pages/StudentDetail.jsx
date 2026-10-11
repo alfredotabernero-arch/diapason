@@ -24,6 +24,8 @@ import { useStore } from '../store/StoreContext.jsx';
 import { REPERTOIRE_TYPES, STATUSES, STATUS_STYLE } from '../utils/constants.js';
 import { WEEKDAYS, endTime, formatFull, formatHours, formatShort } from '../utils/dates.js';
 import { byId, fullName, sortTasks, studentAssignments, studentMonthlyResults, studentStats } from '../utils/selectors.js';
+import { altaOf, isActive, yearLabel, yearsStayed } from '../utils/school.js';
+import { todayISO } from '../utils/dates.js';
 
 const TABS = [
   { value: 'resumen', label: 'Resumen' },
@@ -80,6 +82,9 @@ export default function StudentDetail() {
               {student.instrument !== state.settings.subject && <InstrumentBadge instrument={student.instrument} />}
               <span className="chip bg-ink-50 text-ink-600">{student.level}</span>
               {student.group && <span className="chip bg-violet-50 text-violet-700">{student.group}</span>}
+              {isActive(student)
+                ? <span className={`chip ${student.permanent ? 'bg-brass-50 text-brass-700' : 'bg-sky-50 text-sky-700'}`}>{yearLabel(student)}</span>
+                : <span className="chip bg-amber-50 text-amber-800">Antiguo alumno</span>}
             </div>
           </div>
         </div>
@@ -379,7 +384,9 @@ function PersonalData({ student }) {
           ['Nivel', student.level],
           ['Teléfono', student.phone || '—'],
           ['Email', student.email || '—'],
-          ['Alumno desde', student.since ? formatFull(student.since) : '—'],
+          ['Fecha de alta', formatFull(altaOf(student))],
+          ['Año en la escuela', isActive(student) ? yearLabel(student) : `Estuvo ${yearsStayed(student)} ${yearsStayed(student) === 1 ? 'curso' : 'cursos'}`],
+          ...(student.leftAt ? [['Fecha de baja', formatFull(student.leftAt)]] : []),
           ['Asistencia', stats.asistencia === null ? '—' : `${stats.asistencia} % (${stats.faltas} ${stats.faltas === 1 ? 'falta' : 'faltas'})`],
           ['Última clase', lastLesson ? formatFull(lastLesson.date) : '—'],
         ].map(([k, v]) => (
@@ -389,7 +396,12 @@ function PersonalData({ student }) {
           </div>
         ))}
         <div className="px-4 py-3">
-          <p className="text-sm text-ink-400 mb-1.5 flex items-center gap-1.5"><CalendarClock size={14} /> Horario</p>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <p className="text-sm text-ink-400 flex items-center gap-1.5"><CalendarClock size={14} /> Horario</p>
+            <Link to={`/alumnos/${student.id}/editar?seccion=horario`} className="btn-ghost !px-2 !py-1 text-xs font-semibold text-brass-600">
+              <Pencil size={13} /> Cambiar horario
+            </Link>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {(student.schedule || []).map((s, i) => (
               <span key={i} className="chip bg-ink-50 text-ink-700 !py-1">{WEEKDAYS[s.weekday - 1]} {s.time}–{endTime(s.time, s.duration)}</span>
@@ -403,6 +415,31 @@ function PersonalData({ student }) {
             <p className="text-sm text-ink-700 whitespace-pre-line">{student.notes}</p>
           </div>
         )}
+        <BajaButton student={student} />
       </section>
+  );
+}
+
+/** Dar de baja (pasa a antiguo alumno, conserva todo) o reincorporar */
+function BajaButton({ student }) {
+  const { actions } = useStore();
+  const [ask, setAsk] = useState(false);
+  const active = isActive(student);
+  return (
+    <div className="px-4 py-3">
+      {active ? (
+        <button className="btn-ghost !px-2 !py-1.5 text-sm text-ink-500" onClick={() => setAsk(true)}>Dar de baja…</button>
+      ) : (
+        <button className="btn-secondary !py-1.5 text-sm" onClick={() => { actions.saveStudent({ ...student, leftAt: null }); actions.notify('Alumno reincorporado'); }}>Reincorporar a la escuela</button>
+      )}
+      <ConfirmDialog
+        open={ask}
+        onClose={() => setAsk(false)}
+        title="Dar de baja"
+        confirmLabel="Dar de baja hoy"
+        message={`${fullName(student)} pasará a antiguo alumno: sale de la agenda y de las listas del curso, pero conserva sus notas, clases y repertorio. Se puede reincorporar cuando quieras. Para poner otra fecha, edítalo.`}
+        onConfirm={() => { actions.saveStudent({ ...student, leftAt: todayISO() }); actions.notify('Baja registrada'); }}
+      />
+    </div>
   );
 }
