@@ -219,7 +219,7 @@ export default function StudentForm() {
             <Field label="Fecha de alta">
               <input type="date" className="input !px-2" value={form.since || ''} onChange={(e) => e.target.value && setForm((f) => ({ ...f, since: e.target.value }))} />
             </Field>
-            <Field label="Año en la escuela" hint={form.permanent ? 'Permanente: no cuenta años' : form.yearAdjust ? 'Corregido a mano' : 'Calculado desde el alta'}>
+            {!form.groupOnly && <Field label="Año en la escuela" hint={form.permanent ? 'Permanente: no cuenta años' : form.yearAdjust ? 'Corregido a mano' : 'Calculado desde el alta'}>
               <input
                 type="number" min="1" max="20" className="input" disabled={form.permanent}
                 value={form.permanent ? '' : schoolYear(form)}
@@ -228,12 +228,12 @@ export default function StudentForm() {
                   if (v >= 1) setForm((f) => ({ ...f, yearAdjust: v - schoolYear({ ...f, yearAdjust: 0 }) }));
                 }}
               />
-            </Field>
+            </Field>}
           </div>
-          <label className="flex items-start gap-3 rounded-xl border border-ink-100 px-3 py-2.5">
+          {!form.groupOnly && <label className="flex items-start gap-3 rounded-xl border border-ink-100 px-3 py-2.5">
             <input type="checkbox" className="mt-1 h-4 w-4 accent-ink-800" checked={!!form.permanent} onChange={(e) => setForm((f) => ({ ...f, permanent: e.target.checked }))} />
             <span className="text-sm"><b className="text-ink-800">Alumno permanente</b><span className="block text-xs text-ink-400">Sin límite de años (por ejemplo, por los privilegios de la escuela). No se le proponen la baja ni los años.</span></span>
-          </label>
+          </label>}
           <Field label="Fecha de baja" hint={form.leftAt ? 'Desde el día siguiente pasa a antiguo alumno: sale de la agenda, pero conserva todo su historial.' : 'Déjala vacía mientras siga en la escuela.'}>
             <div className="flex gap-2">
               <input type="date" className="input !px-2" value={form.leftAt || ''} onChange={(e) => setForm((f) => ({ ...f, leftAt: e.target.value || null }))} />
