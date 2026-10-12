@@ -30,7 +30,7 @@ export default function MailButton({ people, items, group = '', label = 'Enviar 
     }
   };
   return (
-    <button type="button" onClick={send} disabled={busy || !items.length} className={`${className} ${sinEmail ? 'opacity-60' : ''}`} aria-label={label} title={sinEmail ? 'Sin email en la ficha' : label} data-ayuda="correo">
+    <button type="button" onClick={send} disabled={busy || !items.length} className={`${className} ${sinEmail ? 'opacity-60' : ''}`} aria-label={label} title={sinEmail ? 'Sin email en la ficha' : label} data-ayuda={label === 'Enviar todo' ? 'Enviar todo' : 'correo'}>
       <Mail size={iconOnly ? 17 : 16} />{!iconOnly && ` ${label}`}
     </button>
   );
