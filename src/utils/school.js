@@ -51,6 +51,8 @@ export function isActive(s, date = todayISO()) {
 }
 
 export const activeStudents = (state, date = todayISO()) => state.students.filter((s) => isActive(s, date));
+/** Alumnos con calificaciones: todos menos los miembros «solo de grupo» */
+export const isGraded = (s) => !s?.groupOnly;
 export const formerStudents = (state, date = todayISO()) => state.students.filter((s) => !isActive(s, date));
 
 /**

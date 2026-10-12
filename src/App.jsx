@@ -13,6 +13,8 @@ import Tasks from './pages/Tasks.jsx';
 import Statistics from './pages/Statistics.jsx';
 import Settings from './pages/Settings.jsx';
 import Listados from './pages/Listados.jsx';
+import GroupForm from './pages/GroupForm.jsx';
+import GroupDetail from './pages/GroupDetail.jsx';
 
 export default function App() {
   return (
@@ -24,6 +26,9 @@ export default function App() {
         <Route path="alumnos/nuevo" element={<StudentForm />} />
         <Route path="alumnos/:id" element={<StudentDetail />} />
         <Route path="alumnos/:id/editar" element={<StudentForm />} />
+        <Route path="grupos/nuevo" element={<GroupForm />} />
+        <Route path="grupos/:id" element={<GroupDetail />} />
+        <Route path="grupos/:id/editar" element={<GroupForm />} />
         <Route path="clases" element={<LessonHistory />} />
         <Route path="clases/nueva" element={<LessonForm />} />
         <Route path="clases/:id" element={<LessonForm />} />

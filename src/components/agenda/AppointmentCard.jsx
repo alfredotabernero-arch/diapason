@@ -20,14 +20,14 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
   const [changeOpen, setChangeOpen] = useState(false);
   const subject = state.settings.subject;
   const first = appt.student;
-  const st = instrumentStyle(appt.isGroup ? subject : first.instrument);
+  const st = instrumentStyle(appt.isGroup || !first ? subject : first.instrument);
   const isToday = appt.date === todayISO();
   const start = timeToMinutes(appt.time);
   const now = nowMinutes();
   const live = isToday && now >= start && now < start + appt.duration;
   const past = appt.date < todayISO() || (isToday && now >= start + appt.duration);
-  const groupUrl = `/clases/nueva?grupo=${encodeURIComponent(appt.group)}&fecha=${appt.date}&hora=${appt.time}&duracion=${appt.duration}`;
-  const singleUrl = `/clases/nueva?alumno=${first.id}&fecha=${appt.date}&hora=${appt.time}&duracion=${appt.duration}`;
+  const groupUrl = `/clases/nueva?grupo=${appt.groupId}&fecha=${appt.date}&hora=${appt.time}&duracion=${appt.duration}`;
+  const singleUrl = `/clases/nueva?alumno=${first?.id}&fecha=${appt.date}&hora=${appt.time}&duracion=${appt.duration}`;
 
   const register = (e) => {
     e.stopPropagation();
@@ -59,7 +59,7 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
           <p className="truncate font-semibold text-ink-800">{appt.isGroup ? appt.group : fullName(first)}</p>
           <p className="flex items-center gap-1.5 text-xs text-ink-400 truncate">
             {appt.isGroup ? (
-              <>{appt.students.length} alumnos</>
+              <>{appt.students.length} {appt.students.length === 1 ? 'miembro' : 'miembros'}</>
             ) : (
               <>
                 {first.instrument !== subject && <><span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{first.instrument}<span className="text-ink-200">·</span></>}
@@ -107,7 +107,10 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
           open={groupOpen}
           onClose={() => setGroupOpen(false)}
           title={appt.group}
-          footer={<Link to={groupUrl} className="btn-primary w-full sm:w-auto"><ClipboardPen size={16} /> {appt.lessons.length ? 'Revisar la clase del grupo' : 'Registrar la clase del grupo'}</Link>}
+          footer={<>
+            <Link to={`/grupos/${appt.groupId}`} className="btn-secondary w-full sm:w-auto"><Users size={16} /> Ver el grupo</Link>
+            <Link to={groupUrl} className="btn-primary w-full sm:w-auto"><ClipboardPen size={16} /> {appt.lessons.length ? 'Revisar el ensayo' : 'Registrar el ensayo'}</Link>
+          </>}
         >
           <p className="mb-3 text-sm text-ink-400">{formatLong(appt.date)} · {appt.time}–{endTime(appt.time, appt.duration)}</p>
           <ul className="space-y-2">
@@ -119,7 +122,7 @@ export default function AppointmentCard({ appt, compact = false, delay = 0 }) {
                     <Avatar student={s} size="sm" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold text-ink-800">{fullName(s)}</span>
-                      <span className="text-xs text-ink-400">{s.instrument}</span>
+                      <span className="text-xs text-ink-400">{s.groupOnly ? 'Solo de grupo' : s.instrument}</span>
                     </span>
                     {lesson && <span className={`chip ${ATTENDANCE_STYLE[lesson.attendance || 'Asistió'].chip}`}>{lesson.attendance || 'Asistió'}</span>}
                   </Link>

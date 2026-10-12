@@ -311,6 +311,55 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
       }
     }
   }
+  // ---------- Grupos (asignaturas instrumentales): un conjunto estable y un dúo ocasional.
+  // En Lenguaje Musical los grupos salen del campo «group» de cada alumno (ver migrate).
+  let groups;
+  if (!lm) {
+    const soloGrupo = [
+      { id: 'st11', firstName: 'Marta', lastName: 'Ruiz Aguado', phone: '', email: 'marta.ruiz@correo.es' },
+      { id: 'st12', firstName: 'Andrés', lastName: 'Vega Soto', phone: '', email: 'andres.vega@correo.es' },
+    ];
+    for (const p of soloGrupo) {
+      students.push({ ...p, instrument: subject, level: 'Adulto · Intermedio', schedule: [], notes: 'Solo viene al conjunto.', since: addDays(today, -300), createdAt: addDays(today, -300), groupOnly: true, permanent: false, levelHistory: {} });
+    }
+    const ensemble = {
+      id: 'gr_ensemble', name: `Ensemble de ${subject.toLowerCase()}s`, kind: 'estable',
+      schedule: [{ weekday: 5, time: '19:45', duration: 90 }], memberIds: ['st1', 'st4', 'st7', 'st9', 'st11', 'st12'],
+      archived: false, notes: 'Prepara el concierto de primavera. Ensayo general la semana anterior.', createdAt: addDays(today, -300),
+    };
+    const duo = {
+      id: 'gr_duo', name: 'Dúo para la audición', kind: 'ocasional', schedule: [], memberIds: ['st7', 'st9'],
+      archived: false, notes: 'Solo hasta la audición de diciembre.', createdAt: addDays(today, -20),
+    };
+    groups = [ensemble, duo];
+    const grand2 = mulberry32(99);
+    const groupItems = library.filter((i) => i.type === 'obra').slice(0, 3);
+    // repertorio común del conjunto: las dos primeras obras, para todos los miembros
+    groupItems.slice(0, 2).forEach((item, k) => {
+      for (const id of ensemble.memberIds) {
+        if (assignments.some((a) => a.studentId === id && a.itemId === item.id)) continue;
+        const assignedAt = addDays(today, -60);
+        assignments.push({ id: `a_${id}_g${k}`, studentId: id, itemId: item.id, status: 'En estudio', progress: 50 - k * 10, assignedAt, updatedAt: addDays(today, -7), log: [{ date: assignedAt, progress: 0 }, { date: addDays(today, -7), progress: 50 - k * 10 }] });
+      }
+    });
+    for (let w = WEEKS_BACK; w >= 0; w--) {
+      const date = addDays(thisMonday, -7 * w + 4);
+      if (date >= today || !inTerms(date, settings.terms)) continue;
+      const chosen = groupItems.slice(w % 2, (w % 2) + 2);
+      const work = chosen.map((i) => `${i.title}: ensayo por secciones`).join('. ') + '. Afinación de conjunto.';
+      for (const id of ensemble.memberIds) {
+        const st = students.find((x) => x.id === id);
+        if (date < st.since) continue;
+        const roll = grand2();
+        const attendance = roll < 0.08 ? 'Falta justificada' : 'Asistió';
+        lessons.push({
+          id: `lg_${id}_${date}`, studentId: id, groupId: ensemble.id, date, time: '19:45', duration: 90, attendance,
+          work: attendance === 'Asistió' ? work : '', itemIds: attendance === 'Asistió' ? chosen.map((i) => i.id) : [],
+          observations: attendance === 'Asistió' ? '' : 'Aviso previo.', incidents: '', result: attendance === 'Asistió' ? (grand2() > 0.5 ? 'Muy bien' : 'Bien') : '',
+        });
+      }
+    }
+  }
   lessons.sort((a, b) => (a.date + a.time < b.date + b.time ? 1 : -1));
 
   // ---------- Calificaciones: trimestres ya terminados del curso actual y del anterior
@@ -322,6 +371,7 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
   for (const course of courses) {
     const ranges = courseRanges(course, settings.terms);
     for (const st of students) {
+      if (st.groupOnly) continue; // los miembros solo de grupo no tienen calificaciones
       const g = { id: `${st.id}_${course}`, studentId: st.id, course, t1: null, t2: null, t3: null, final: null, comments: {} };
       let any = false;
       ['t1', 't2', 't3'].forEach((t, k) => {
@@ -350,5 +400,6 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
     materials,
     notes,
     grades,
+    ...(groups ? { groups, changes: [{ id: 'ch_duo', kind: 'extra', groupId: 'gr_duo', group: 'Dúo para la audición', studentIds: ['st7', 'st9'], date: addDays(startOfWeek(today), 9), time: '19:00', duration: 60, note: 'Ensayo del dúo', createdAt: today }] } : {}),
   };
 }

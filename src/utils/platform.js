@@ -25,6 +25,8 @@ export const canExit = () => isNative() || (typeof window !== 'undefined' && !!w
 
 /** Cierra la aplicación (Android o Windows) */
 export async function exitApp() {
+  const { flushState } = await import('./storage.js');
+  await flushState();
   if (typeof window !== 'undefined' && window.diapasonPC?.salir) { window.diapasonPC.salir(); return; }
   const { App } = await import('@capacitor/app');
   App.exitApp();

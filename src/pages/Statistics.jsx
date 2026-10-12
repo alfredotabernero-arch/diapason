@@ -20,7 +20,7 @@ import { GRADE_ABBR, TERMS, gradeLabel } from '../utils/constants.js';
 import {
   byId, fullName, monthlyEvolution, studentAssignments, studentMonthlyResults, studentStats, teacherSessions, weeklyMinutes, weeklySlots,
 } from '../utils/selectors.js';
-import { activeStudents, altaOf, isActive, levelIn, levelIndex } from '../utils/school.js';
+import { activeStudents, altaOf, isActive, isGraded, levelIn, levelIndex } from '../utils/school.js';
 
 const AXIS = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: '#6E7EA3' } };
 const TOOLTIP = { contentStyle: { borderRadius: 12, border: '1px solid #E3E7F0', fontSize: 12, boxShadow: '0 8px 24px -8px rgba(20,26,44,.2)' } };
@@ -73,7 +73,7 @@ function TeacherStats() {
   const obras = state.assignments.filter((a) => items.get(a.itemId)?.type === 'obra');
   const inProcess = obras.filter((a) => ACTIVE_STATUSES.includes(a.status)).length;
 
-  const act = activeStudents(state);
+  const act = activeStudents(state).filter(isGraded);
   const levelNames = [...new Set(act.map((s) => s.level))].sort((a, b) => levelIndex(state.settings, a) - levelIndex(state.settings, b) || a.localeCompare(b, 'es', { numeric: true }));
   const byLevel = levelNames.map((l) => ({ name: l, alumnos: act.filter((s) => s.level === l).length }));
   const instrumentNames = [...new Set(act.map((s) => s.instrument))];
@@ -253,7 +253,7 @@ function TeacherStats() {
 function StudentStats() {
   const { state } = useStore();
   const [params, setParams] = useSearchParams();
-  const ordered = [...state.students].sort((a, b) => Number(isActive(b)) - Number(isActive(a)));
+  const ordered = state.students.filter(isGraded).sort((a, b) => Number(isActive(b)) - Number(isActive(a)));
   const studentId = params.get('alumno') || ordered[0]?.id;
   const student = state.students.find((s) => s.id === studentId);
   if (!student) return <p className="text-ink-400">No hay alumnos.</p>;
@@ -381,7 +381,7 @@ function courseSummary(state, course) {
   const grades = state.grades.filter((g) => g.course === course);
   const lessons = state.lessons.filter((l) => l.date >= from && l.date <= to);
   const ids = new Set([...grades.map((g) => g.studentId), ...lessons.map((l) => l.studentId)]);
-  const students = state.students.filter((s) => ids.has(s.id) || (altaOf(s) <= to && isActive(s, from) && course <= courseOf()));
+  const students = state.students.filter(isGraded).filter((s) => ids.has(s.id) || (altaOf(s) <= to && isActive(s, from) && course <= courseOf()));
   const sessions = teacherSessions(state, lessons);
   const att = lessons.length ? Math.round((lessons.filter(attended).length / lessons.length) * 100) : null;
   const medias = Object.fromEntries([...TERMS.map((t) => [t.key, mean(grades.map((g) => g[t.key]))]), ['final', mean(grades.map(finalGrade))]]);

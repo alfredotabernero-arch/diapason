@@ -4,9 +4,12 @@ import { ResultBadge } from '../ui/Badges.jsx';
 import { ATTENDANCE_STYLE, attended, instrumentStyle } from '../../utils/constants.js';
 import { formatShort, fromISO } from '../../utils/dates.js';
 import { fullName } from '../../utils/selectors.js';
+import { useStore } from '../../store/StoreContext.jsx';
 
 export default function LessonCard({ lesson, student, showStudent = true, delay = 0 }) {
+  const { state } = useStore();
   const st = instrumentStyle(student?.instrument);
+  const grupo = lesson.groupId ? (state.groups || []).find((g) => g.id === lesson.groupId)?.name : lesson.groupName;
   const d = fromISO(lesson.date);
   return (
     <Link
@@ -30,6 +33,7 @@ export default function LessonCard({ lesson, student, showStudent = true, delay 
           <span className={`flex shrink-0 items-center gap-1 text-xs text-ink-400 ${showStudent ? '' : 'font-semibold'}`}>
             <Clock size={12} /> {lesson.time} · {lesson.duration} min
           </span>
+          {grupo && <span className="chip shrink-0 bg-violet-50 !py-0.5 text-violet-700">{grupo}</span>}
           <span className="ml-auto shrink-0">
             {attended(lesson) ? <ResultBadge result={lesson.result} /> : <span className={`chip ${ATTENDANCE_STYLE[lesson.attendance].chip}`}>{lesson.attendance}</span>}
           </span>

@@ -6,10 +6,11 @@ import ProgressBar from '../ui/ProgressBar.jsx';
 import { useStore } from '../../store/StoreContext.jsx';
 import { STATUSES, STATUS_STYLE, STATUS_DEFAULT_PROGRESS, itemSubtitle, itemTitle } from '../../utils/constants.js';
 import { formatShort } from '../../utils/dates.js';
+import MailButton from '../mail/MailButton.jsx';
 
 /** Editar estado y progreso de una asignación */
 export default function AssignmentSheet({ assignment, onClose, studentName }) {
-  const { actions } = useStore();
+  const { state, actions } = useStore();
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('Pendiente');
 
@@ -49,6 +50,9 @@ export default function AssignmentSheet({ assignment, onClose, studentName }) {
           >
             <Trash2 size={16} /> Quitar
           </button>
+          {state.students.find((s) => s.id === assignment.studentId) && (
+            <MailButton people={[state.students.find((s) => s.id === assignment.studentId)]} items={[item]} label="Correo" />
+          )}
           <button
             className="btn-primary"
             onClick={() => {

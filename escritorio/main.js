@@ -39,6 +39,20 @@ ipcMain.handle('abrir-archivo', async (_e, nombre, datos) => {
   const error = await shell.openPath(ruta);
   if (error) throw new Error(error);
 });
+// Adjuntos para un correo: se guardan en una carpeta y se muestra seleccionado el primero
+ipcMain.handle('preparar-adjuntos', async (_e, archivos) => {
+  const sello = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const carpeta = path.join(os.tmpdir(), 'Diapason-correo', sello);
+  fs.mkdirSync(carpeta, { recursive: true });
+  const rutas = (archivos || []).map(({ nombre, datos }) => {
+    const seguro = String(nombre || 'archivo').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
+    const ruta = path.join(carpeta, seguro);
+    fs.writeFileSync(ruta, Buffer.from(datos));
+    return ruta;
+  });
+  if (rutas.length) shell.showItemInFolder(rutas[0]);
+  return carpeta;
+});
 ipcMain.on('salir', () => app.quit());
 
 app.whenReady().then(() => {

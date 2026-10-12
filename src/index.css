@@ -79,3 +79,17 @@
   tr { break-inside: avoid; }
   .print-table-wrap { overflow: visible !important; }
 }
+
+/* 1.6: ayudas en bocadillo */
+.ayuda-globo {
+  position: fixed; z-index: 9999; max-width: min(320px, calc(100vw - 20px)); padding: 10px 13px; border-radius: 14px;
+  background: #141A2C; color: #E8ECF5; font-size: 13px; line-height: 1.4; box-shadow: 0 12px 30px -10px rgba(20, 26, 44, 0.45);
+  opacity: 0; transform: translateY(4px); transition: opacity 0.16s ease, transform 0.16s ease; pointer-events: none;
+}
+.ayuda-globo.on { opacity: 1; transform: none; }
+.ayuda-globo b { display: block; margin-bottom: 2px; font-weight: 600; color: #D7B46A; }
+.ayuda-globo::after {
+  content: ''; position: absolute; left: var(--flecha, 50%); bottom: -6px; margin-left: -7px;
+  border: 7px solid transparent; border-bottom: 0; border-top-color: #141A2C;
+}
+.ayuda-globo.abajo::after { bottom: auto; top: -6px; border-top: 0; border-bottom: 7px solid #141A2C; }

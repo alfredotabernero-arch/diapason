@@ -15,9 +15,9 @@ import { courseLabel, courseOf, courseRanges, finalGrade, proposedFinal, shiftCo
 import { WEEKDAYS, addDays, endTime, formatFull, formatShort, formatHours, isoWeekday, monthLabel, startOfMonth, addMonths, todayISO } from '../utils/dates.js';
 import { downloadCSV } from '../utils/csv.js';
 import { deliverFile, isDesktop, isNative } from '../utils/platform.js';
-import { activeStudents, altaOf, courseStart, isActive, levelIn, levelIndex, yearLabel, yearsStayed } from '../utils/school.js';
+import { altaOf, courseStart, isActive, isGraded, levelIn, levelIndex, yearLabel, yearsStayed } from '../utils/school.js';
 import { buildBoletin, lugarYFecha, termsUpTo } from '../utils/boletin.js';
-import { byId, fullName, sortTasks, studentAssignments } from '../utils/selectors.js';
+import { activeGroups, byId, fullName, groupNames, sortTasks, studentAssignments } from '../utils/selectors.js';
 
 const LISTS = [
   { value: 'notas', label: 'Calificaciones' },
@@ -35,11 +35,19 @@ export default function Listados() {
   const [params, setParams] = useSearchParams();
   const list = params.get('lista') || 'notas';
   const { state } = useStore();
-  const groups = [...new Set(activeStudents(state).map((s) => s.group).filter(Boolean))].sort();
-  const [group, setGroup] = useState('');
-  // las listas del curso usan los alumnos activos; el acta de un curso pasado, los que estaban entonces
-  const all = state.students.filter((s) => !group || s.group === group).sort(bySurname);
+  const groups = activeGroups(state).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const [groupId, setGroupId] = useState('');
+  const groupObj = groups.find((g) => g.id === groupId);
+  const group = groupObj?.name || '';
+  // las listas del curso usan los alumnos activos; el acta de un curso pasado, los que estaban entonces.
+  // «group» de cada fila: los grupos de la persona, para mostrarlos en las listas
+  const all = state.students
+    .filter((s) => !groupObj || groupObj.memberIds.includes(s.id))
+    .map((s) => ({ ...s, group: groupNames(state, s) }))
+    .sort(bySurname);
   const students = all.filter((s) => isActive(s));
+  // Calificaciones y hoja del alumno: sin los miembros «solo de grupo»
+  const graded = all.filter(isGraded);
 
   return (
     <>
@@ -48,17 +56,17 @@ export default function Listados() {
         <Segmented value={list} onChange={(v) => setParams({ lista: v }, { replace: true })} options={LISTS} />
         {groups.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {['', ...groups].map((g) => (
-              <button key={g || 'all'} onClick={() => setGroup(g)} className={`chip !py-1.5 !px-3 transition ${group === g ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 border border-ink-100'}`}>
-                {g || 'Todos los grupos'}
+            {[{ id: '', name: 'Todos' }, ...groups].map((g) => (
+              <button key={g.id || 'all'} onClick={() => setGroupId(g.id)} className={`chip !py-1.5 !px-3 transition ${groupId === g.id ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 border border-ink-100'}`}>
+                {g.name}
               </button>
             ))}
           </div>
         )}
       </div>
       <div key={list} className="mt-4 animate-fade-up">
-        {list === 'notas' && <GradesList students={all} group={group} />}
-        {list === 'boletin' && <BoletinList students={all} group={group} />}
+        {list === 'notas' && <GradesList students={graded} group={group} />}
+        {list === 'boletin' && <BoletinList students={graded} group={group} />}
         {list === 'alumnos' && <StudentsList students={students} group={group} />}
         {list === 'antiguos' && <FormerList students={all.filter((s) => !isActive(s))} group={group} />}
         {list === 'asistencia' && <AttendanceList students={students} group={group} />}
@@ -219,15 +227,26 @@ function StudentsList({ students, group }) {
         times.add(x.time);
         days.add(x.weekday);
         if (!cells.has(key)) cells.set(key, { duration: x.duration, names: new Set() });
-        cells.get(key).names.add(s.group || `${s.firstName} ${s.lastName.split(' ')[0]}`);
+        cells.get(key).names.add(`${s.firstName} ${s.lastName.split(' ')[0]}`);
+      }
+    }
+    // ensayos de los grupos con algún alumno de la lista
+    const ids = new Set(students.map((s) => s.id));
+    for (const g of activeGroups(state).filter((x) => x.memberIds.some((m) => ids.has(m)))) {
+      for (const x of g.schedule || []) {
+        const key = `${x.weekday}|${x.time}`;
+        times.add(x.time);
+        days.add(x.weekday);
+        if (!cells.has(key)) cells.set(key, { duration: x.duration, names: new Set() });
+        cells.get(key).names.add(g.name);
       }
     }
     return { cells, times: [...times].sort(), days: [...days].sort() };
-  }, [students]);
+  }, [students, state.groups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const csv = () => downloadCSV(`Alumnos-${state.settings.subject}${fileTag(group)}`,
-    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupo', 'Año en la escuela', 'Fecha de alta', 'Teléfono', 'Email', 'Horario'],
-    students.map((s) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.level, s.group || '', yearLabel(s), ddmmaa(altaOf(s)), s.phone, s.email, schedule(s)]));
+    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupos', 'Año en la escuela', 'Fecha de alta', 'Teléfono', 'Email', 'Horario'],
+    students.map((s) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.groupOnly ? 'Solo de grupo' : s.level, s.group || '', s.groupOnly ? '' : yearLabel(s), ddmmaa(altaOf(s)), s.phone, s.email, schedule(s)]));
 
   return (
     <>
@@ -236,7 +255,7 @@ function StudentsList({ students, group }) {
       <Table>
         <thead>
           <tr>
-            <Th>Alumno</Th>{showInstrument && <Th>Especialidad</Th>}<Th>Nivel</Th><Th>Grupo</Th><Th>Año</Th><Th>Alta</Th><Th>Teléfono</Th><Th>Email</Th><Th>Horario</Th>
+            <Th>Alumno</Th>{showInstrument && <Th>Especialidad</Th>}<Th>Nivel</Th><Th>Grupos</Th><Th>Año</Th><Th>Alta</Th><Th>Teléfono</Th><Th>Email</Th><Th>Horario</Th>
           </tr>
         </thead>
         <tbody>
@@ -244,13 +263,13 @@ function StudentsList({ students, group }) {
             <tr key={s.id}>
               <Td className="whitespace-nowrap"><Link to={`/alumnos/${s.id}`} className="font-semibold text-ink-800 hover:underline">{s.lastName}, {s.firstName}</Link></Td>
               {showInstrument && <Td>{s.instrument}</Td>}
-              <Td className="whitespace-nowrap">{s.level}</Td>
+              <Td className="whitespace-nowrap">{s.groupOnly ? <span className="text-ink-400">Solo de grupo</span> : s.level}</Td>
               <Td className="whitespace-nowrap">{s.group || '—'}</Td>
-              <Td className="whitespace-nowrap">{yearLabel(s)}</Td>
+              <Td className="whitespace-nowrap">{s.groupOnly ? '—' : yearLabel(s)}</Td>
               <Td className="whitespace-nowrap tabular-nums">{ddmmaa(altaOf(s))}</Td>
               <Td className="whitespace-nowrap tabular-nums">{s.phone || '—'}</Td>
               <Td className="break-all">{s.email || '—'}</Td>
-              <Td className="text-ink-500">{schedule(s) || '—'}</Td>
+              <Td className="text-ink-500">{schedule(s) || (s.groupOnly ? 'Ensayos de grupo' : '—')}</Td>
             </tr>
           ))}
         </tbody>
@@ -326,7 +345,7 @@ function AttendanceList({ students, group }) {
     const to = p.to < yesterday ? p.to : yesterday;
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const wd = isoWeekday(d);
-      for (const x of s.schedule || []) if (Number(x.weekday) === wd && !ls.some((l) => l.date === d)) unregistered++;
+      for (const x of s.schedule || []) if (Number(x.weekday) === wd && !ls.some((l) => !l.groupId && l.date === d)) unregistered++;
     }
     return {
       s, total: ls.length, att: att.length, fj, fi,

@@ -5,7 +5,7 @@ import ProgressBar from '../ui/ProgressBar.jsx';
 import { InstrumentBadge } from '../ui/Badges.jsx';
 import { WEEKDAYS } from '../../utils/dates.js';
 import { useStore } from '../../store/StoreContext.jsx';
-import { fullName } from '../../utils/selectors.js';
+import { fullName, groupsOf } from '../../utils/selectors.js';
 
 export default function StudentCard({ student, progress, pending, delay = 0 }) {
   const { state } = useStore();
@@ -20,13 +20,14 @@ export default function StudentCard({ student, progress, pending, delay = 0 }) {
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             {showInstrument && <InstrumentBadge instrument={student.instrument} />}
             <span className="text-xs text-ink-400">{student.level}</span>
-            {student.group && <span className="chip bg-violet-50 text-violet-700">{student.group}</span>}
+            {student.groupOnly && <span className="chip bg-ink-50 text-ink-500">Solo de grupo</span>}
+            {groupsOf(state, student.id).map((g) => <span key={g.id} className="chip bg-violet-50 text-violet-700">{g.name}</span>)}
           </div>
         </div>
         <ChevronRight size={18} className="text-ink-200" />
       </div>
       <div className="mt-3 flex items-center gap-3 text-xs text-ink-400">
-        <span className="min-w-0 truncate">{slots || 'Sin horario'}</span>
+        <span className="min-w-0 truncate">{slots || (student.groupOnly ? 'Clases de grupo' : 'Sin horario')}</span>
         {pending > 0 && <span className="chip bg-brass-50 text-brass-600">{pending} tareas</span>}
         <div className="ml-auto w-28"><ProgressBar value={progress} size="sm" showLabel /></div>
       </div>

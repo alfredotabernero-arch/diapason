@@ -14,7 +14,7 @@ import MaterialList from '../components/materials/MaterialList.jsx';
 import MaterialFormSheet from '../components/materials/MaterialFormSheet.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { REPERTOIRE_TYPES, itemTitle } from '../utils/constants.js';
-import { byId, fullName } from '../utils/selectors.js';
+import { byId, fullName, groupNames } from '../utils/selectors.js';
 import { activeStudents } from '../utils/school.js';
 
 export default function RepertoireDetail() {
@@ -144,7 +144,7 @@ export default function RepertoireDetail() {
                   <Avatar student={s} size="sm" />
                   <span className="flex-1">
                     <span className="block font-semibold text-ink-800">{fullName(s)}</span>
-                    <span className="text-xs text-ink-400">{s.level}{s.group ? ` · ${s.group}` : ''}</span>
+                    <span className="text-xs text-ink-400">{s.groupOnly ? 'Solo de grupo' : s.level}{groupNames(state, s) ? ` · ${groupNames(state, s)}` : ''}</span>
                   </span>
                   <Plus size={18} className="text-ink-300" />
                 </button>

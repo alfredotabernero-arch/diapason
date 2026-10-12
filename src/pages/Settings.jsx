@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { AlertTriangle, ArrowLeftRight, CheckCircle2, CircleDot, FolderInput, LogOut, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, CircleDot, FolderInput, HardDrive, LogOut, MessageCircleQuestion, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { persistStorage, storageEstimate, usingIndexedDb } from '../utils/storage.js';
+import { formatBytes } from '../utils/files.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Field from '../components/ui/Field.jsx';
 import Sheet, { ConfirmDialog } from '../components/ui/Sheet.jsx';
@@ -229,6 +231,8 @@ export default function Settings() {
             </p>
           </section>
 
+          <HelpAndStorage />
+
           <section className="card space-y-3 p-4">
             <h2 className="font-display text-xl">Datos de ejemplo y empezar de cero</h2>
             <p className="text-sm text-ink-500">Diez alumnos con horario, repertorio, tareas, historial de clases, asistencia y notas del curso pasado, para probar Diapasón.</p>
@@ -326,5 +330,48 @@ export default function Settings() {
         }}
       />
     </>
+  );
+}
+
+/** Ayudas en bocadillo y dónde se guardan los datos */
+function HelpAndStorage() {
+  const { state, actions } = useStore();
+  const [info, setInfo] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const persistente = await persistStorage();
+      const est = await storageEstimate();
+      if (vivo) setInfo({ persistente, usado: est?.usage ?? null, cuota: est?.quota ?? null });
+    })();
+    return () => { vivo = false; };
+  }, []);
+  return (
+    <section className="card space-y-3 p-4">
+      <label className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600"><MessageCircleQuestion size={20} /></div>
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-xl">Mostrar ayudas</span>
+          <span className="block text-sm text-ink-500">Un bocadillo explica qué hace cada botón: en el PC, deja el ratón quieto encima; en el móvil y la tablet, <b>mantén pulsado</b> el botón (no se ejecuta).</span>
+        </span>
+        <input type="checkbox" className="mt-2 h-5 w-5 accent-ink-800" checked={!!state.settings.showHelp} onChange={(e) => { actions.saveSettings({ showHelp: e.target.checked }); actions.notify(e.target.checked ? 'Ayudas activadas' : 'Ayudas desactivadas'); }} />
+      </label>
+      <div className="flex items-start gap-3 border-t border-ink-100 pt-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-600"><HardDrive size={20} /></div>
+        <div className="min-w-0 flex-1 text-sm text-ink-500">
+          <p className="font-display text-xl text-ink-900">Almacenamiento</p>
+          <p>{usingIndexedDb
+            ? <>Tus datos se guardan en la base de datos de este dispositivo, con sitio para muchos años de cursos.</>
+            : <>Este navegador no permite la base de datos: los datos se guardan en su almacén pequeño (unos 5 MB). Mejor usa la app instalada.</>}
+          </p>
+          {info && (
+            <p className="mt-1 text-xs text-ink-400">
+              {info.usado !== null && `Ocupan ${formatBytes(info.usado)}${info.cuota ? ` de ${formatBytes(info.cuota)} disponibles` : ''}. `}
+              {info.persistente ? 'Guardado permanente: el sistema no los borrará aunque falte espacio.' : 'El sistema podría borrarlos si se queda sin espacio: haz «Enviar datos» de vez en cuando.'}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

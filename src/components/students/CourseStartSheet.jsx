@@ -15,7 +15,7 @@ export default function CourseStartSheet({ open, onClose }) {
   const course = courseOf();
   const leftAt = courseEndBefore(course);
   const students = useMemo(
-    () => state.students.filter((s) => isActive(s, leftAt))
+    () => state.students.filter((s) => !s.groupOnly && isActive(s, leftAt))
       .sort((a, b) => fullName(a).localeCompare(fullName(b), 'es')),
     [state.students, course, leftAt]
   );

@@ -13,13 +13,29 @@ export function byId(list) {
   return map;
 }
 
-/** Cambio puntual que afecta a la clase de un alumno en un día y hora de su horario (anulada o movida) */
+/** Grupos en activo (no archivados) */
+export const activeGroups = (state) => (state.groups || []).filter((g) => !g.archived);
+/** Grupos a los que pertenece una persona */
+export const groupsOf = (state, studentId) => activeGroups(state).filter((g) => (g.memberIds || []).includes(studentId));
+/** «Décimo Arco, Superchelos» */
+export const groupNames = (state, s) => (s ? groupsOf(state, s.id).map((g) => g.name).join(', ') : '');
+/** Miembros de un grupo en activo en una fecha (sin los antiguos alumnos ni los que aún no estaban) */
+export function groupMembers(state, group, date = todayISO()) {
+  const ids = new Set(group?.memberIds || []);
+  return state.students.filter((s) => ids.has(s.id) && !(s.since && date < s.since) && !(s.leftAt && date > s.leftAt));
+}
+
+/** Cambio puntual que afecta a la clase individual de un alumno en un día y hora de su horario (anulada o movida) */
 export function changeFor(state, studentId, date, time) {
-  return (state.changes || []).find((c) => (c.kind === 'anular' || c.kind === 'mover') && c.date === date && c.time === time && c.studentIds.includes(studentId));
+  return (state.changes || []).find((c) => !c.groupId && (c.kind === 'anular' || c.kind === 'mover') && c.date === date && c.time === time && c.studentIds.includes(studentId));
+}
+/** Lo mismo para la clase de un grupo */
+export function groupChangeFor(state, groupId, date, time) {
+  return (state.changes || []).find((c) => c.groupId === groupId && (c.kind === 'anular' || c.kind === 'mover') && c.date === date && c.time === time);
 }
 
 /**
- * Citas de un día: horario semanal de cada alumno, con los cambios puntuales aplicados
+ * Clases individuales de un día: horario semanal de cada alumno, con los cambios puntuales aplicados
  * (clases anuladas o movidas ese día, y clases movidas a ese día o añadidas sueltas),
  * más el estado de registro de la clase.
  */
@@ -27,8 +43,9 @@ export function appointmentsForDate(state, date) {
   const wd = isoWeekday(date);
   const out = [];
   const students = new Map(state.students.map((s) => [s.id, s]));
-  const lessonOf = (st, time) => state.lessons.find((l) => l.studentId === st.id && l.date === date && l.time === time)
-    || state.lessons.find((l) => l.studentId === st.id && l.date === date);
+  const indiv = (l) => !l.groupId;
+  const lessonOf = (st, time) => state.lessons.find((l) => indiv(l) && l.studentId === st.id && l.date === date && l.time === time)
+    || state.lessons.find((l) => indiv(l) && l.studentId === st.id && l.date === date);
   const enActivo = (st) => !(st.since && date < st.since) && !(st.leftAt && date > st.leftAt);
   for (const st of state.students) {
     if (!enActivo(st)) continue;
@@ -38,8 +55,9 @@ export function appointmentsForDate(state, date) {
       out.push({ key: `${st.id}-${date}-${slot.time}`, student: st, date, time: slot.time, duration: Number(slot.duration), lesson: lessonOf(st, slot.time) || null });
     }
   }
-  // clases movidas a este día y clases sueltas
+  // clases individuales movidas a este día y clases sueltas
   for (const c of state.changes || []) {
+    if (c.groupId) continue;
     const here = (c.kind === 'mover' && c.toDate === date) || (c.kind === 'extra' && c.date === date);
     if (!here) continue;
     const time = c.kind === 'mover' ? c.toTime : c.time;
@@ -52,38 +70,57 @@ export function appointmentsForDate(state, date) {
   return out.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
 }
 
+/** Clases de grupo de un día: horario de cada grupo, sus cambios puntuales y las clases sueltas del grupo */
+export function groupAppointmentsForDate(state, date) {
+  const wd = isoWeekday(date);
+  const out = [];
+  const groups = new Map((state.groups || []).map((g) => [g.id, g]));
+  const make = (g, time, duration, change = null) => {
+    const students = groupMembers(state, g, date);
+    const lessons = state.lessons.filter((l) => l.groupId === g.id && l.date === date && l.time === time);
+    return {
+      key: `g:${g.id}|${time}|${date}${change ? `|${change.id}` : ''}`, date, time, duration: Number(duration),
+      group: g.name, groupId: g.id, groupObj: g, students, lessons, change, student: students[0] || null,
+      lesson: null, isGroup: true, registered: lessons.length > 0 && lessons.length >= students.length,
+    };
+  };
+  for (const g of activeGroups(state)) {
+    for (const slot of g.schedule || []) {
+      if (Number(slot.weekday) !== wd) continue;
+      if (groupChangeFor(state, g.id, date, slot.time)) continue;
+      out.push(make(g, slot.time, slot.duration));
+    }
+  }
+  for (const c of state.changes || []) {
+    if (!c.groupId) continue;
+    const here = (c.kind === 'mover' && c.toDate === date) || (c.kind === 'extra' && c.date === date);
+    const g = groups.get(c.groupId);
+    if (!here || !g) continue;
+    out.push(make(g, c.kind === 'mover' ? c.toTime : c.time, c.duration, c));
+  }
+  return out;
+}
+
 /** Clases anuladas un día (para verlas tachadas y poder recuperarlas) */
 export function cancelledForDate(state, date) {
   const map = new Map();
+  const groups = new Map((state.groups || []).map((g) => [g.id, g]));
   for (const c of state.changes || []) {
     if (c.kind !== 'anular' || c.date !== date) continue;
-    const sts = c.studentIds.map((id) => state.students.find((s) => s.id === id)).filter(Boolean);
-    if (sts.length) map.set(c.id, { change: c, students: sts, time: c.time, duration: Number(c.duration), group: c.group || '' });
+    const g = c.groupId ? groups.get(c.groupId) : null;
+    const sts = g ? groupMembers(state, g, date) : c.studentIds.map((id) => state.students.find((s) => s.id === id)).filter(Boolean);
+    if (sts.length || g) map.set(c.id, { change: c, students: sts, time: c.time, duration: Number(c.duration), group: g ? g.name : '' });
   }
   return [...map.values()].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
 }
 
-/**
- * Agenda del día: las clases de grupo (alumnos con el mismo grupo, hora y duración)
- * se unen en una sola cita. Cada entrada lleva students[] y lessons[].
- */
+/** Agenda del día: clases individuales y de grupo. Cada entrada lleva students[] y lessons[]. */
 export function agendaForDate(state, date) {
-  const map = new Map();
-  for (const a of appointmentsForDate(state, date)) {
-    const g = a.student.group || '';
-    const key = g ? `g:${g}|${a.time}|${a.duration}` : `s:${a.student.id}|${a.time}`;
-    if (!map.has(key)) map.set(key, { key: `${key}|${date}`, date, time: a.time, duration: a.duration, group: g, students: [], lessons: [], change: a.change || null });
-    const e = map.get(key);
-    e.students.push(a.student);
-    if (a.lesson) e.lessons.push(a.lesson);
-  }
-  return [...map.values()].map((e) => ({
-    ...e,
-    student: e.students[0],
-    lesson: e.students.length === 1 ? e.lessons[0] || null : null,
-    isGroup: e.students.length > 1,
-    registered: e.lessons.length >= e.students.length,
+  const indiv = appointmentsForDate(state, date).map((a) => ({
+    ...a, key: `s:${a.student.id}|${a.time}|${date}${a.change ? `|${a.change.id}` : ''}`, group: '', students: [a.student],
+    lessons: a.lesson ? [a.lesson] : [], isGroup: false, registered: !!a.lesson,
   }));
+  return [...indiv, ...groupAppointmentsForDate(state, date)].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
 }
 
 export function nextAppointment(state, fromDate = todayISO(), fromMinutes = 0) {
@@ -96,25 +133,20 @@ export function nextAppointment(state, fromDate = todayISO(), fromMinutes = 0) {
 }
 
 /** Clases a la semana (una clase de grupo cuenta una vez) */
-export function weeklySlots(state) {
-  const set = new Set();
-  for (const s of state.students.filter((x) => isActive(x))) {
-    for (const x of s.schedule || []) set.add(s.group ? `g:${s.group}|${x.weekday}|${x.time}` : `s:${s.id}|${x.weekday}|${x.time}`);
-  }
-  return set.size;
-}
-
-export function weeklyClassCount(state) {
-  return state.students.filter((x) => isActive(x)).reduce((n, s) => n + (s.schedule?.length || 0), 0);
-}
-
-export function weeklyMinutes(state) {
+function weeklyMap(state) {
   const seen = new Map();
   for (const s of state.students.filter((x) => isActive(x))) {
-    for (const x of s.schedule || []) seen.set(s.group ? `g:${s.group}|${x.weekday}|${x.time}` : `s:${s.id}|${x.weekday}|${x.time}`, Number(x.duration));
+    for (const x of s.schedule || []) seen.set(`s:${s.id}|${x.weekday}|${x.time}`, Number(x.duration));
   }
-  return [...seen.values()].reduce((a, b) => a + b, 0);
+  for (const g of activeGroups(state)) {
+    if (!groupMembers(state, g).length) continue;
+    for (const x of g.schedule || []) seen.set(`g:${g.id}|${x.weekday}|${x.time}`, Number(x.duration));
+  }
+  return seen;
 }
+export const weeklySlots = (state) => weeklyMap(state).size;
+export const weeklyClassCount = weeklySlots;
+export const weeklyMinutes = (state) => [...weeklyMap(state).values()].reduce((a, b) => a + b, 0);
 
 export function studentAssignments(state, studentId, itemsMap = byId(state.items)) {
   return state.assignments
@@ -162,12 +194,10 @@ function weekKey(iso) {
  * aunque genere un registro por alumno. Solo cuenta si asistió al menos un alumno.
  */
 export function teacherSessions(state, lessons = state.lessons) {
-  const groupOf = new Map(state.students.map((s) => [s.id, s.group || '']));
   const map = new Map();
   for (const l of lessons) {
     if (!attended(l)) continue;
-    const g = groupOf.get(l.studentId);
-    const key = g ? `g:${g}|${l.date}|${l.time}` : l.id;
+    const key = l.groupId ? `g:${l.groupId}|${l.date}|${l.time}` : l.id;
     if (!map.has(key)) map.set(key, l);
   }
   return [...map.values()];

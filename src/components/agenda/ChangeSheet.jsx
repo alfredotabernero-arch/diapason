@@ -5,7 +5,7 @@ import Field from '../ui/Field.jsx';
 import Segmented from '../ui/Segmented.jsx';
 import { useStore } from '../../store/StoreContext.jsx';
 import { endTime, formatLong } from '../../utils/dates.js';
-import { fullName } from '../../utils/selectors.js';
+import { activeGroups, fullName, groupMembers } from '../../utils/selectors.js';
 import { activeStudents } from '../../utils/school.js';
 
 const DURATIONS = [30, 45, 60, 75, 90, 120];
@@ -33,7 +33,7 @@ export function ChangeSheet({ open, onClose, appt }) {
 
   const save = () => {
     const base = {
-      studentIds: appt.students.map((s) => s.id), group: appt.isGroup ? appt.group : '',
+      studentIds: appt.students.map((s) => s.id), group: appt.isGroup ? appt.group : '', groupId: appt.isGroup ? appt.groupId : null,
       date: appt.date, time: appt.time, duration: appt.duration, note: note.trim(),
     };
     if (mode === 'anular') {
@@ -98,23 +98,24 @@ export function ChangeSheet({ open, onClose, appt }) {
 }
 
 /** Clase suelta: un día concreto, para un alumno o un grupo, fuera del horario semanal */
-export function ExtraSheet({ open, onClose, date }) {
+export function ExtraSheet({ open, onClose, date, groupId = '' }) {
   const { state, actions } = useStore();
-  const students = activeStudents(state, date).sort((a, b) => fullName(a).localeCompare(fullName(b), 'es'));
-  const groups = [...new Set(students.map((s) => s.group).filter(Boolean))].sort();
-  const [who, setWho] = useState('');
+  const students = activeStudents(state, date).filter((s) => !s.groupOnly).sort((a, b) => fullName(a).localeCompare(fullName(b), 'es'));
+  const groups = activeGroups(state).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const [who, setWho] = useState(groupId ? `g:${groupId}` : '');
   const [d, setD] = useState(date);
   const [time, setTime] = useState('17:00');
   const [duration, setDuration] = useState(60);
   const [note, setNote] = useState('');
 
-  useEffect(() => { if (open) { setD(date); setWho(''); setNote(''); } }, [open, date]);
+  useEffect(() => { if (open) { setD(date); setWho(groupId ? `g:${groupId}` : ''); setNote(''); } }, [open, date, groupId]);
 
   const save = () => {
     if (!who || !d || !time) return;
     const isGroup = who.startsWith('g:');
-    const ids = isGroup ? students.filter((s) => s.group === who.slice(2)).map((s) => s.id) : [who.slice(2)];
-    actions.saveChange({ kind: 'extra', studentIds: ids, group: isGroup ? who.slice(2) : '', date: d, time, duration: Number(duration), note: note.trim() });
+    const g = isGroup ? groups.find((x) => x.id === who.slice(2)) : null;
+    const ids = g ? groupMembers(state, g, d).map((s) => s.id) : [who.slice(2)];
+    actions.saveChange({ kind: 'extra', studentIds: ids, group: g ? g.name : '', groupId: g ? g.id : null, date: d, time, duration: Number(duration), note: note.trim() });
     actions.notify('Clase puntual añadida');
     onClose();
   };
@@ -123,14 +124,14 @@ export function ExtraSheet({ open, onClose, date }) {
     <Sheet
       open={open}
       onClose={onClose}
-      title="Clase puntual"
+      title={groupId ? 'Ensayo puntual' : 'Clase puntual'}
       footer={<><button className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={save} disabled={!who}>Añadir</button></>}
     >
       <div className="space-y-3">
         <Field label="Para">
           <select className="input" value={who} onChange={(e) => setWho(e.target.value)}>
             <option value="">Elige un alumno o un grupo…</option>
-            {groups.length > 0 && <optgroup label="Grupos">{groups.map((g) => <option key={g} value={`g:${g}`}>{g}</option>)}</optgroup>}
+            {groups.length > 0 && <optgroup label="Grupos">{groups.map((g) => <option key={g.id} value={`g:${g.id}`}>{g.name}</option>)}</optgroup>}
             <optgroup label="Alumnos">{students.map((s) => <option key={s.id} value={`s:${s.id}`}>{fullName(s)}</option>)}</optgroup>
           </select>
         </Field>

@@ -11,17 +11,21 @@ import '@fontsource/instrument-serif/latin-400-italic.css';
 import App from './App.jsx';
 import { StoreProvider } from './store/StoreContext.jsx';
 import { isLocalFile, isNative } from './utils/platform.js';
+import { loadSaved, persistStorage } from './utils/storage.js';
 import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+// Los datos se leen de IndexedDB antes de pintar la app (en las versiones anteriores, de localStorage)
+loadSaved().then((saved) => ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HashRouter>
-      <StoreProvider>
+      <StoreProvider saved={saved}>
         <App />
       </StoreProvider>
     </HashRouter>
   </React.StrictMode>
-);
+));
+// Que el sistema no borre nunca los datos aunque falte espacio (sobre todo en el iPad)
+persistStorage();
 
 // Web instalada (iPhone, iPad, navegador): guarda la app en el dispositivo para usarla sin conexión.
 // No se usa en la app Android ni al abrir Diapason.html desde el PC, que ya son locales.

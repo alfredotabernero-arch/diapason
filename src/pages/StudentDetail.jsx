@@ -23,7 +23,8 @@ import MaterialFormSheet from '../components/materials/MaterialFormSheet.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { REPERTOIRE_TYPES, STATUSES, STATUS_STYLE } from '../utils/constants.js';
 import { WEEKDAYS, endTime, formatFull, formatHours, formatShort } from '../utils/dates.js';
-import { byId, fullName, sortTasks, studentAssignments, studentMonthlyResults, studentStats } from '../utils/selectors.js';
+import { byId, fullName, groupsOf, sortTasks, studentAssignments, studentMonthlyResults, studentStats } from '../utils/selectors.js';
+import MailButton from '../components/mail/MailButton.jsx';
 import { altaOf, isActive, yearLabel, yearsStayed } from '../utils/school.js';
 import { todayISO } from '../utils/dates.js';
 
@@ -81,10 +82,12 @@ export default function StudentDetail() {
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {student.instrument !== state.settings.subject && <InstrumentBadge instrument={student.instrument} />}
               <span className="chip bg-ink-50 text-ink-600">{student.level}</span>
-              {student.group && <span className="chip bg-violet-50 text-violet-700">{student.group}</span>}
-              {isActive(student)
+              {student.groupOnly && <span className="chip bg-ink-50 text-ink-600">Solo de grupo</span>}
+              {groupsOf(state, student.id).map((g) => <Link key={g.id} to={`/grupos/${g.id}`} className="chip bg-violet-50 text-violet-700 hover:bg-violet-100">{g.name}</Link>)}
+              {student.groupOnly ? null : isActive(student)
                 ? <span className={`chip ${student.permanent ? 'bg-brass-50 text-brass-700' : 'bg-sky-50 text-sky-700'}`}>{yearLabel(student)}</span>
                 : <span className="chip bg-amber-50 text-amber-800">Antiguo alumno</span>}
+              {student.groupOnly && !isActive(student) && <span className="chip bg-amber-50 text-amber-800">Antiguo miembro</span>}
             </div>
           </div>
         </div>
@@ -95,7 +98,7 @@ export default function StudentDetail() {
         </div>
       </section>
       <div className="hidden space-y-5 lg:block">
-        <GradesCard student={student} />
+        {!student.groupOnly && <GradesCard student={student} />}
         <PersonalData student={student} />
       </div>
       </aside>
@@ -227,7 +230,7 @@ function SummaryTab({ student, stats, onTab }) {
       </section>
 
       <div className="space-y-5 lg:hidden">
-        <GradesCard student={student} />
+        {!student.groupOnly && <GradesCard student={student} />}
         <PersonalData student={student} />
       </div>
 
@@ -243,8 +246,15 @@ function RepertoireTab({ student }) {
   const assignments = studentAssignments(state, student.id);
   const order = { 'En estudio': 0, Iniciada: 1, Consolidada: 2, Pendiente: 3, Terminada: 4 };
 
+  const activos = assignments.filter((a) => a.status !== 'Terminada').map((a) => a.item);
   return (
     <div className="space-y-6">
+      {activos.length > 0 && (
+        <div className="card flex items-center gap-3 p-3">
+          <p className="min-w-0 flex-1 text-sm text-ink-500">Envía a {student.firstName} su repertorio con los enlaces y los PDF, desde tu correo.</p>
+          <MailButton people={[student]} items={activos} className="btn-secondary !px-3 !py-2 shrink-0" />
+        </div>
+      )}
       {Object.entries(REPERTOIRE_TYPES).map(([type, t]) => {
         const list = assignments.filter((a) => a.item.type === type).sort((a, b) => order[a.status] - order[b.status]);
         return (
@@ -381,11 +391,12 @@ function PersonalData({ student }) {
           ['Nombre', student.firstName],
           ['Apellidos', student.lastName],
           ['Instrumento', student.instrument],
-          ['Nivel', student.level],
+          ...(student.groupOnly ? [] : [['Nivel', student.level]]),
+          ['Grupos', groupsOf(state, student.id).map((g) => g.name).join(', ') || '—'],
           ['Teléfono', student.phone || '—'],
           ['Email', student.email || '—'],
           ['Fecha de alta', formatFull(altaOf(student))],
-          ['Año en la escuela', isActive(student) ? yearLabel(student) : `Estuvo ${yearsStayed(student)} ${yearsStayed(student) === 1 ? 'curso' : 'cursos'}`],
+          ...(student.groupOnly ? [] : [['Año en la escuela', isActive(student) ? yearLabel(student) : `Estuvo ${yearsStayed(student)} ${yearsStayed(student) === 1 ? 'curso' : 'cursos'}`]]),
           ...(student.leftAt ? [['Fecha de baja', formatFull(student.leftAt)]] : []),
           ['Asistencia', stats.asistencia === null ? '—' : `${stats.asistencia} % (${stats.faltas} ${stats.faltas === 1 ? 'falta' : 'faltas'})`],
           ['Última clase', lastLesson ? formatFull(lastLesson.date) : '—'],

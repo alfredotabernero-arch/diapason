@@ -7,6 +7,7 @@ export default function Segmented({ options, value, onChange, className = '' }) 
         const active = opt.value === value;
         return (
           <button
+            type="button"
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={`flex-1 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-semibold transition-all duration-200 ${

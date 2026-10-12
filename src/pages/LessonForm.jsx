@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../components/ui/Sheet.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { ACTIVE_STATUSES, ATTENDANCE, ATTENDANCE_STYLE, RESULTS, RESULT_STYLE, itemTitle } from '../utils/constants.js';
 import { formatLong, todayISO } from '../utils/dates.js';
-import { appointmentsForDate, byId, fullName, studentAssignments } from '../utils/selectors.js';
+import { appointmentsForDate, byId, fullName, groupMembers, studentAssignments } from '../utils/selectors.js';
 import { useGoBack } from '../utils/navigation.js';
 import { activeStudents } from '../utils/school.js';
 
@@ -30,7 +30,10 @@ export default function LessonForm() {
   const goBack = useGoBack('/clases');
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState('');
-  const groupName = !existing ? params.get('grupo') || '' : '';
+  // ?grupo=<id del grupo> (o el nombre, en enlaces antiguos)
+  const groupParam = !existing ? params.get('grupo') || '' : '';
+  const groupObj = groupParam ? (state.groups || []).find((g) => g.id === groupParam) || (state.groups || []).find((g) => g.name === groupParam) : null;
+  const groupName = groupObj?.name || '';
 
   const [form, setForm] = useState(() => {
     if (existing) return { attendance: 'Asistió', ...existing, itemIds: existing.itemIds || [] };
@@ -52,12 +55,13 @@ export default function LessonForm() {
   });
 
   // Modo grupo: alumnos del grupo y su asistencia/valoración individual
-  const groupStudents = useMemo(() => (groupName ? activeStudents(state).filter((s) => s.group === groupName) : []), [groupName, state.students]);
+  const groupStudents = useMemo(() => (groupObj ? groupMembers(state, groupObj, form.date) : []), [groupObj, state.students, form.date]); // eslint-disable-line react-hooks/exhaustive-deps
   const [roster, setRoster] = useState(() => {
-    if (!groupName) return {};
+    if (!groupObj) return {};
     const out = {};
-    for (const s of activeStudents(state).filter((x) => x.group === groupName)) {
-      const prev = state.lessons.find((l) => l.studentId === s.id && l.date === (params.get('fecha') || todayISO()) && l.time === params.get('hora'));
+    const fecha = params.get('fecha') || todayISO();
+    for (const s of groupMembers(state, groupObj, fecha)) {
+      const prev = state.lessons.find((l) => l.groupId === groupObj.id && l.studentId === s.id && l.date === fecha && l.time === params.get('hora'));
       out[s.id] = { attendance: prev?.attendance || 'Asistió', result: prev?.result || 'Bien', lessonId: prev?.id || null };
     }
     return out;
@@ -106,11 +110,11 @@ export default function LessonForm() {
     if (groupName) {
       if (!form.work.trim()) return setError('Describe el trabajo realizado en clase');
       const list = groupStudents.map((s) => {
-        const r = roster[s.id];
+        const r = roster[s.id] || { attendance: 'Asistió', result: 'Bien', lessonId: null };
         const present = r.attendance === 'Asistió';
         return {
           ...(r.lessonId ? { id: r.lessonId } : {}),
-          studentId: s.id, date: form.date, time: form.time, duration: Number(form.duration),
+          studentId: s.id, groupId: groupObj.id, date: form.date, time: form.time, duration: Number(form.duration),
           attendance: r.attendance,
           work: present ? form.work.trim() : '',
           observations: present ? form.observations : '',
@@ -120,7 +124,7 @@ export default function LessonForm() {
         };
       });
       actions.saveLessons(list);
-      actions.notify(`Clase registrada para ${list.length} alumnos`);
+      actions.notify(`Ensayo registrado para ${list.length} ${list.length === 1 ? 'miembro' : 'miembros'}`);
       return goBack();
     }
     if (!form.studentId) return setError('Elige un alumno');
@@ -160,7 +164,7 @@ export default function LessonForm() {
     <>
       <PageHeader
         back
-        title={existing ? 'Clase' : groupName ? 'Clase del grupo' : 'Registrar clase'}
+        title={existing ? (existing.groupId ? 'Ensayo de grupo' : 'Clase') : groupName ? 'Ensayo del grupo' : 'Registrar clase'}
         subtitle={groupName ? `${groupName} · ${formatLong(form.date)}` : student ? fullName(student) : 'Historial de clases'}
       />
       <form onSubmit={save} className="grid gap-4 lg:grid-cols-2 lg:items-start" noValidate>
@@ -170,7 +174,7 @@ export default function LessonForm() {
               <Field label="Alumno">
                 <select className="input" value={form.studentId} onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value, itemIds: [] }))}>
                   <option value="">Elige un alumno…</option>
-                  {activeStudents(state).map((s) => <option key={s.id} value={s.id}>{fullName(s)}{s.group ? ` · ${s.group}` : ''}</option>)}
+                  {activeStudents(state).filter((s) => !s.groupOnly || s.id === form.studentId).map((s) => <option key={s.id} value={s.id}>{fullName(s)}</option>)}
                 </select>
               </Field>
             )}
@@ -204,11 +208,11 @@ export default function LessonForm() {
 
           {groupName && (
             <section className="card p-4">
-              <span className="label">Asistencia y valoración · {groupStudents.length} alumnos</span>
+              <span className="label">Asistencia y valoración · {groupStudents.length} {groupStudents.length === 1 ? 'miembro' : 'miembros'}</span>
               <ul className="divide-y divide-ink-50">
                 {groupStudents.map((s) => {
-                  const r = roster[s.id];
-                  const setR = (k, v) => setRoster((x) => ({ ...x, [s.id]: { ...x[s.id], [k]: v } }));
+                  const r = roster[s.id] || { attendance: 'Asistió', result: 'Bien', lessonId: null };
+                  const setR = (k, v) => setRoster((x) => ({ ...x, [s.id]: { ...r, ...x[s.id], [k]: v } }));
                   return (
                     <li key={s.id} className="py-2.5">
                       <div className="flex items-center gap-2">
@@ -280,7 +284,7 @@ export default function LessonForm() {
         <div className="flex gap-2 lg:col-span-2">
           {existing && <button type="button" className="btn-danger" onClick={() => setConfirm(true)}><Trash2 size={16} /> Eliminar</button>}
           <button type="button" className="btn-secondary ml-auto" onClick={goBack}>Cancelar</button>
-          <button type="submit" className="btn-primary">{groupName ? 'Guardar la clase del grupo' : 'Guardar clase'}</button>
+          <button type="submit" className="btn-primary">{groupName ? 'Guardar el ensayo' : 'Guardar clase'}</button>
         </div>
       </form>
       <ConfirmDialog

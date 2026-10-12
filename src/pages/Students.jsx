@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { UserPlus, Users } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import SearchInput from '../components/ui/SearchInput.jsx';
@@ -7,7 +7,8 @@ import EmptyState from '../components/ui/EmptyState.jsx';
 import StudentCard from '../components/students/StudentCard.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { ACTIVE_STATUSES, instrumentStyle } from '../utils/constants.js';
-import { fullName, normalize } from '../utils/selectors.js';
+import { fullName, groupsOf, normalize } from '../utils/selectors.js';
+import GroupList from '../components/groups/GroupList.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
 import { isActive, levelIndex } from '../utils/school.js';
 
@@ -18,7 +19,10 @@ export default function Students() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState('nombre');
-  const [tab, setTab] = useState('activos');
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('vista') || 'activos';
+  const setTab = (v) => setParams(v === 'activos' ? {} : { vista: v }, { replace: true });
+  const nGrupos = (state.groups || []).filter((g) => !g.archived).length;
   const nActivos = state.students.filter((s) => isActive(s)).length;
   const nAntiguos = state.students.length - nActivos;
   const pool = state.students.filter((s) => (tab === 'activos' ? isActive(s) : !isActive(s)));
@@ -38,18 +42,20 @@ export default function Students() {
 
   // Filtros rápidos: grupos, especialidades (si hay varias) y niveles
   const count = (fn) => pool.filter(fn).length;
-  const groups = [...new Set(pool.map((s) => s.group).filter(Boolean))].sort();
+  const gOf = (s) => groupsOf(state, s.id).map((g) => g.name);
+  const groups = [...new Set(pool.flatMap(gOf))].sort();
   const instruments = [...new Set(pool.map((s) => s.instrument))].sort();
   const levels = [...new Set(pool.map((s) => s.level))].sort((a, b) => levelIndex(state.settings, a) - levelIndex(state.settings, b));
   const chips = [
-    ...groups.map((g) => ({ value: g, kind: 'group', count: count((s) => s.group === g) })),
+    ...groups.map((g) => ({ value: g, kind: 'group', count: count((s) => gOf(s).includes(g)) })),
     ...(instruments.length > 1 ? instruments.map((i) => ({ value: i, kind: 'instrument', count: count((s) => s.instrument === i) })) : []),
+    ...(pool.some((s) => s.groupOnly) ? [{ value: 'Solo de grupo', kind: 'solo', count: count((s) => s.groupOnly) }] : []),
     ...(groups.length ? [] : levels.map((l) => ({ value: l, kind: 'level', count: count((s) => s.level === l) }))),
   ];
 
   const list = enriched
-    .filter(({ s }) => !filter || s.instrument === filter || s.group === filter || s.level === filter)
-    .filter(({ s }) => normalize(`${fullName(s)} ${s.instrument} ${s.level} ${s.group} ${s.email} ${s.phone}`).includes(normalize(q)))
+    .filter(({ s }) => !filter || s.instrument === filter || gOf(s).includes(filter) || s.level === filter || (filter === 'Solo de grupo' && s.groupOnly))
+    .filter(({ s }) => normalize(`${fullName(s)} ${s.instrument} ${s.level} ${gOf(s).join(' ')} ${s.email} ${s.phone}`).includes(normalize(q)))
     .sort((a, b) =>
       sort === 'progreso' ? b.progress - a.progress
         : sort === 'nivel' ? levelIndex(state.settings, a.s.level) - levelIndex(state.settings, b.s.level) || a.s.firstName.localeCompare(b.s.firstName)
@@ -61,11 +67,19 @@ export default function Students() {
       <PageHeader
         title="Alumnos"
         subtitle={`${nActivos} alumnos · ${state.settings.subject}`}
-        actions={<Link to="/alumnos/nuevo" className="btn-primary !px-3"><UserPlus size={18} /> Nuevo</Link>}
+        actions={tab === 'grupos'
+          ? <Link to="/grupos/nuevo" className="btn-primary !px-3"><Users size={18} /> Nuevo grupo</Link>
+          : <Link to="/alumnos/nuevo" className="btn-primary !px-3"><UserPlus size={18} /> Nuevo</Link>}
       />
-      {nAntiguos > 0 && (
-        <Segmented className="mb-3" value={tab} onChange={(v) => { setTab(v); setFilter(''); }} options={[{ value: 'activos', label: 'Activos', count: nActivos }, { value: 'antiguos', label: 'Antiguos alumnos', count: nAntiguos }]} />
-      )}
+      <Segmented
+        className="mb-3" value={tab} onChange={(v) => { setTab(v); setFilter(''); }}
+        options={[
+          { value: 'activos', label: 'Activos', count: nActivos },
+          { value: 'grupos', label: 'Grupos', count: nGrupos },
+          ...(nAntiguos > 0 ? [{ value: 'antiguos', label: 'Antiguos alumnos', count: nAntiguos }] : []),
+        ]}
+      />
+      {tab === 'grupos' ? <GroupList /> : <>
       <SearchInput value={q} onChange={setQ} placeholder="Buscar por nombre, nivel, grupo…" />
 
       <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 no-scrollbar md:mx-0 md:flex-wrap md:px-0">
@@ -107,6 +121,7 @@ export default function Students() {
           action={<Link to="/alumnos/nuevo" className="btn-primary"><UserPlus size={16} /> Nuevo alumno</Link>}
         />
       )}
+      </>}
     </>
   );
 }

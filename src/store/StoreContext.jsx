@@ -1,28 +1,63 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { buildSeed } from '../data/seed.js';
-import { todayISO } from '../utils/dates.js';
+import { isoWeekday, todayISO } from '../utils/dates.js';
 import { uid, STATUS_DEFAULT_PROGRESS, isInstrumentSubject } from '../utils/constants.js';
 import { DEFAULT_TERMS, courseOf } from '../utils/courses.js';
 import { DEFAULT_LEVELS } from '../utils/school.js';
 import { deleteFile } from '../utils/files.js';
 import { readPaso, writePaso } from '../utils/paso.js';
+import { saveState } from '../utils/storage.js';
+import { instalarAyudas, setAyudas } from '../utils/ayuda.js';
 
-const STORAGE_KEY = 'diapason:v1';
-const LEGACY_KEY = 'music-teacher-studio:v1'; // nombre anterior de la app
 const StoreContext = createContext(null);
 
+/**
+ * 1.6: los grupos pasan a ser fichas propias (nombre, horario, miembros).
+ * Hasta la 1.5 cada alumno tenía un texto «Grupo» y su horario era el del grupo:
+ * cada grupo se convierte en una ficha con sus miembros y ese horario, y las clases
+ * ya registradas a esas horas pasan a ser clases del grupo.
+ */
+function migrateGroups(data) {
+  if (Array.isArray(data.groups)) return data;
+  const students = data.students || [];
+  const names = [...new Set(students.map((s) => s.group).filter(Boolean))];
+  const groups = names.map((name) => {
+    const members = students.filter((s) => s.group === name);
+    return {
+      id: uid('gr'), name, kind: 'estable', schedule: (members[0].schedule || []).map((x) => ({ ...x })),
+      memberIds: members.map((m) => m.id), archived: false, notes: '', createdAt: todayISO(),
+    };
+  });
+  const byName = new Map(groups.map((g) => [g.name, g]));
+  const groupOf = new Map(students.filter((s) => s.group).map((s) => [s.id, byName.get(s.group)]));
+  return {
+    ...data,
+    groups,
+    students: students.map(({ group, ...s }) => (group ? { ...s, schedule: [] } : s)),
+    lessons: (data.lessons || []).map((l) => {
+      const g = groupOf.get(l.studentId);
+      if (!g || l.groupId) return l;
+      const wd = isoWeekday(l.date);
+      return (g.schedule || []).some((x) => Number(x.weekday) === wd && x.time === l.time) ? { ...l, groupId: g.id } : l;
+    }),
+    changes: (data.changes || []).map((c) => (c.group && byName.has(c.group) && !c.groupId ? { ...c, groupId: byName.get(c.group).id } : c)),
+  };
+}
+
 /** Completa datos guardados por versiones anteriores con los campos nuevos */
-export function migrate(data) {
+export function migrate(input) {
+  const data = migrateGroups(input);
   const counts = {};
   for (const s of data.students || []) counts[s.instrument] = (counts[s.instrument] || 0) + 1;
   const guess = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Violonchelo';
   return {
     ...data,
     // 1.5: niveles editables, localidad y logo de la escuela, y curso ya empezado (para el aviso de inicio de curso)
-    settings: { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, levels: DEFAULT_LEVELS, locality: '', schoolLogo: null, courseOpened: courseOf(), ...data.settings },
+    settings: { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, levels: DEFAULT_LEVELS, locality: '', schoolLogo: null, courseOpened: courseOf(), showHelp: false, ...data.settings },
     // 1.5: alta (since), baja (leftAt), alumno permanente, corrección del año en la escuela y nivel de cada curso
-    students: (data.students || []).map((s) => ({ group: '', leftAt: null, permanent: false, yearAdjust: 0, ...s, levelHistory: { [courseOf()]: s.level, ...(s.levelHistory || {}) } })),
+    students: (data.students || []).map((s) => ({ groupOnly: false, leftAt: null, permanent: false, yearAdjust: 0, ...s, levelHistory: { [courseOf()]: s.level, ...(s.levelHistory || {}) } })),
     changes: data.changes || [],
+    groups: data.groups || [],
     lessons: (data.lessons || []).map((l) => ({ attendance: 'Asistió', ...l })),
     grades: data.grades || [],
     notes: data.notes || [],
@@ -30,17 +65,16 @@ export function migrate(data) {
   };
 }
 
-function load() {
+/** Datos guardados (IndexedDB o, en versiones anteriores, localStorage) o, la primera vez, los de ejemplo */
+function load(saved) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (data && data.version === 1) return migrate(data);
-    }
+    if (saved && saved.version === 1) return migrate(saved);
   } catch {
-    /* almacenamiento no disponible: se usan los datos de ejemplo */
+    /* datos dañados: se usan los de ejemplo */
   }
-  return migrate(buildSeed());
+  // instalación nueva: las ayudas en bocadillo vienen activadas
+  const seed = buildSeed();
+  return migrate({ ...seed, settings: { ...seed.settings, showHelp: true } });
 }
 
 function reducer(state, action) {
@@ -68,7 +102,17 @@ function reducer(state, action) {
         notes: state.notes.filter(keep),
         materials: state.materials.filter(keep),
         grades: state.grades.filter(keep),
-        changes: (state.changes || []).map((c) => ({ ...c, studentIds: c.studentIds.filter((x) => x !== action.id) })).filter((c) => c.studentIds.length),
+        changes: (state.changes || []).map((c) => ({ ...c, studentIds: c.studentIds.filter((x) => x !== action.id) })).filter((c) => c.groupId || c.studentIds.length),
+        groups: (state.groups || []).map((g) => ({ ...g, memberIds: g.memberIds.filter((x) => x !== action.id) })),
+      };
+    }
+    case 'removeGroup': {
+      return {
+        ...state,
+        groups: state.groups.filter((g) => g.id !== action.id),
+        changes: (state.changes || []).filter((c) => c.groupId !== action.id),
+        // las clases ya dadas se conservan en el historial de cada alumno, como clases sueltas
+        lessons: state.lessons.map((l) => (l.groupId === action.id ? { ...l, groupId: null, groupName: action.name } : l)),
       };
     }
     case 'removeItem': {
@@ -81,6 +125,18 @@ function reducer(state, action) {
         tasks: state.tasks.map((t) => (t.itemId === action.id ? { ...t, itemId: null } : t)),
       };
     }
+    case 'setStudentGroups': {
+      const { studentId, groupIds } = action;
+      return {
+        ...state,
+        groups: (state.groups || []).map((g) => {
+          const has = g.memberIds.includes(studentId);
+          const want = groupIds.includes(g.id);
+          if (has === want) return g;
+          return { ...g, memberIds: want ? [...g.memberIds, studentId] : g.memberIds.filter((x) => x !== studentId) };
+        }),
+      };
+    }
     case 'replace':
       return action.state;
     default:
@@ -88,8 +144,8 @@ function reducer(state, action) {
   }
 }
 
-export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, load);
+export function StoreProvider({ children, saved = null }) {
+  const [state, dispatch] = useReducer(reducer, saved, load);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef();
   const stateRef = useRef(state);
@@ -107,14 +163,14 @@ export function StoreProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* cuota superada o modo privado: la sesión sigue funcionando en memoria */
-    }
+    saveState(state);
     if (silent.current) silent.current = false;
     else updatePaso({ lastChange: new Date().toISOString() });
   }, [state, updatePaso]);
+
+  // Ayudas en bocadillo (Ajustes › Mostrar ayudas)
+  useEffect(() => { instalarAyudas(); }, []);
+  useEffect(() => { setAyudas(state.settings.showHelp); }, [state.settings.showHelp]);
 
   const notify = useCallback((message) => {
     clearTimeout(toastTimer.current);
@@ -138,6 +194,19 @@ export function StoreProvider({ children }) {
         const item = data.id ? data : { ...data, id: uid('ch'), createdAt: todayISO() };
         upsert('changes', item);
         return item;
+      },
+      /** Grupo: nombre, tipo (estable u ocasional), horario, miembros y observaciones */
+      saveGroup(data) {
+        const item = data.id ? data : { kind: 'estable', schedule: [], memberIds: [], archived: false, notes: '', ...data, id: uid('gr'), createdAt: todayISO() };
+        upsert('groups', item);
+        return item;
+      },
+      deleteGroup(group) {
+        dispatch({ type: 'removeGroup', id: group.id, name: group.name });
+      },
+      /** Cambia los grupos de una persona (desde su ficha) */
+      setStudentGroups(studentId, groupIds) {
+        dispatch({ type: 'setStudentGroups', studentId, groupIds });
       },
       deleteChange(id) {
         dispatch({ type: 'remove', collection: 'changes', id });
@@ -281,7 +350,7 @@ export function StoreProvider({ children }) {
           type: 'replace',
           state: {
             ...st,
-            students: [], assignments: [], tasks: [], lessons: [], materials: [], notes: [], grades: [], changes: [],
+            students: [], assignments: [], tasks: [], lessons: [], materials: [], notes: [], grades: [], changes: [], groups: [],
             items: st.items.filter((i) => i.instrument === st.settings.subject),
           },
         });

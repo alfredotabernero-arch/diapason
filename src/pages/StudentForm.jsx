@@ -8,11 +8,11 @@ import { useStore } from '../store/StoreContext.jsx';
 import { INSTRUMENTS, instrumentStyle, isInstrumentSubject } from '../utils/constants.js';
 import { WEEKDAYS, todayISO } from '../utils/dates.js';
 import { CYCLE_YEARS, levelsOf, schoolYear } from '../utils/school.js';
-import { fullName } from '../utils/selectors.js';
+import { activeGroups, fullName } from '../utils/selectors.js';
 import { useGoBack } from '../utils/navigation.js';
 
 const EMPTY = {
-  firstName: '', lastName: '', instrument: '', level: '', group: '',
+  firstName: '', lastName: '', instrument: '', level: '', groupOnly: false,
   phone: '', email: '', notes: '', schedule: [{ weekday: 1, time: '17:00', duration: 60 }],
   since: '', leftAt: null, permanent: false, yearAdjust: 0,
 };
@@ -32,8 +32,8 @@ export default function StudentForm() {
   const [errors, setErrors] = useState({});
   const [confirm, setConfirm] = useState(false);
   const [warned, setWarned] = useState('');
-  const groups = [...new Set(state.students.map((s) => s.group).filter(Boolean))].sort();
-  const groupMate = form.group && state.students.find((s) => s.group === form.group && s.id !== existing?.id);
+  const groups = activeGroups(state).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const [groupIds, setGroupIds] = useState(() => (existing ? groups.filter((g) => g.memberIds.includes(existing.id)).map((g) => g.id) : searchParams.get('grupo') ? [searchParams.get('grupo')] : []));
 
   useEffect(() => {
     if (existing) setForm({ ...EMPTY, ...existing, schedule: existing.schedule || [] });
@@ -62,10 +62,10 @@ export default function StudentForm() {
     // Aviso de solapes con otros alumnos (no se avisa entre alumnos del mismo grupo)
     const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
     let warning = '';
-    for (const slot of form.schedule) {
+    for (const slot of (form.groupOnly ? [] : form.schedule)) {
       const s0 = toMin(slot.time);
       const s1 = s0 + Number(slot.duration);
-      const clash = state.students.find((o) => o.id !== existing?.id && !(form.group && o.group === form.group)
+      const clash = state.students.find((o) => o.id !== existing?.id
         && (o.schedule || []).some((x) => Number(x.weekday) === Number(slot.weekday) && toMin(x.time) < s1 && toMin(x.time) + Number(x.duration) > s0));
       if (clash) {
         warning = `Se solapa con ${fullName(clash)} (${WEEKDAYS[slot.weekday - 1]} ${slot.time}). Pulsa «Guardar» otra vez para guardarlo igualmente.`;
@@ -85,12 +85,13 @@ export default function StudentForm() {
       ...form,
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
-      group: form.group.trim(),
       instrument: instrumentSubject ? (form.instrument || subject) : form.instrument,
       schedule: form.schedule.map((s) => ({ weekday: Number(s.weekday), time: s.time, duration: Number(s.duration) })),
       yearAdjust: Number(form.yearAdjust) || 0,
     };
+    if (data.groupOnly) data.schedule = [];
     const saved = actions.saveStudent(data);
+    actions.setStudentGroups(saved.id, groupIds);
     actions.notify(existing ? 'Alumno actualizado' : 'Alumno creado');
     navigate(`/alumnos/${saved.id}`, { replace: true });
   };
@@ -137,10 +138,10 @@ export default function StudentForm() {
                 {(levels.includes(form.level) || !form.level ? levels : [form.level, ...levels]).map((l) => <option key={l}>{l}</option>)}
               </select>
             </Field>
-            <Field label={instrumentSubject ? 'Grupo (opcional)' : 'Grupo'} hint="Los alumnos del mismo grupo comparten clase">
-              <input className="input" list="grupos" value={form.group} onChange={set('group')} placeholder="Ej.: 2.º Elemental · A" />
-              <datalist id="grupos">{groups.map((g) => <option key={g} value={g} />)}</datalist>
-            </Field>
+            <label className="flex items-start gap-3 self-end rounded-xl border border-ink-100 px-3 py-2.5" data-ayuda="solo-grupo">
+              <input type="checkbox" className="mt-1 h-4 w-4 accent-ink-800" checked={!!form.groupOnly} onChange={(e) => setForm((f) => ({ ...f, groupOnly: e.target.checked }))} />
+              <span className="text-sm"><b className="text-ink-800">Solo de grupo</b><span className="block text-xs text-ink-400">Sin clase individual ni calificaciones</span></span>
+            </label>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Teléfono" error={errors.phone}>
@@ -150,24 +151,35 @@ export default function StudentForm() {
               <input className="input" type="email" inputMode="email" value={form.email} onChange={set('email')} autoComplete="email" />
             </Field>
           </div>
+          <div>
+            <span className="label">Grupos</span>
+            {groups.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {groups.map((g) => {
+                  const on = groupIds.includes(g.id);
+                  return (
+                    <button type="button" key={g.id} onClick={() => setGroupIds((x) => (on ? x.filter((y) => y !== g.id) : [...x, g.id]))}
+                      className={`chip !py-1.5 !px-3 transition ${on ? 'bg-violet-600 text-white' : 'bg-white text-ink-500 border border-ink-100'}`}>
+                      {g.name}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : <p className="text-xs text-ink-300">No hay grupos. Se crean en Alumnos › Grupos.</p>}
+          </div>
           <Field label="Observaciones">
             <textarea className="input min-h-[96px]" value={form.notes} onChange={set('notes')} placeholder="Objetivos, contacto familiar, aspectos a vigilar…" />
           </Field>
         </section>
 
 
-        <section id="horario" className={`card p-4 scroll-mt-24 ${goSchedule ? 'ring-2 ring-brass-300' : ''}`}>
+        {!form.groupOnly && <section id="horario" className={`card p-4 scroll-mt-24 ${goSchedule ? 'ring-2 ring-brass-300' : ''}`}>
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="font-display text-xl">Horario semanal</h2>
               <p className="text-xs text-ink-400">Genera automáticamente las citas de la agenda</p>
             </div>
             <div className="flex gap-2">
-              {groupMate && (
-                <button type="button" className="btn-secondary !px-3 !py-2" onClick={() => setForm((f) => ({ ...f, schedule: groupMate.schedule.map((x) => ({ ...x })) }))}>
-                  Horario del grupo
-                </button>
-              )}
               <button
                 type="button"
                 className="btn-secondary !px-3 !py-2"
@@ -194,8 +206,9 @@ export default function StudentForm() {
             ))}
             {!form.schedule.length && <p className="text-sm text-ink-300">Sin clases fijas.</p>}
             {(errors.schedule || warned) && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">{errors.schedule || warned.replace(' Pulsa «Guardar» otra vez para guardarlo igualmente.', '')}</p>}
+            <p className="text-xs text-ink-300">Solo la clase individual. Los ensayos de sus grupos van en el horario de cada grupo.</p>
           </div>
-        </section>
+        </section>}
 
         <section className="card space-y-3 p-4">
           <div>

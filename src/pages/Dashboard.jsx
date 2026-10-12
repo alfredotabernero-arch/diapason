@@ -68,7 +68,7 @@ export default function Dashboard() {
     nextLabel = diff === null ? relativeDay(next.date) : diff <= 0 ? 'Ahora' : diff < 60 ? `En ${diff} min` : `Hoy · en ${Math.floor(diff / 60)} h ${diff % 60} min`;
   }
   const nextUrl = next && (next.isGroup
-    ? `/clases/nueva?grupo=${encodeURIComponent(next.group)}&fecha=${next.date}&hora=${next.time}&duracion=${next.duration}`
+    ? `/clases/nueva?grupo=${next.groupId}&fecha=${next.date}&hora=${next.time}&duracion=${next.duration}`
     : `/clases/nueva?alumno=${next.student.id}&fecha=${next.date}&hora=${next.time}&duracion=${next.duration}`);
 
   return (
@@ -126,7 +126,7 @@ export default function Dashboard() {
           {next ? (
             <section
               className="relative overflow-hidden rounded-3xl bg-ink-800 p-5 text-white shadow-lift cursor-pointer animate-fade-up"
-              onClick={() => (next.isGroup ? navigate('/agenda') : navigate(`/alumnos/${next.student.id}`))}
+              onClick={() => (next.isGroup ? navigate(`/grupos/${next.groupId}`) : navigate(`/alumnos/${next.student.id}`))}
             >
               <Logo variant="mark" tone="mono" className="pointer-events-none absolute -right-2 -top-10 h-64 w-auto text-white/[0.07]" title="" />
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brass-300">Próxima clase · {nextLabel}</p>
@@ -136,7 +136,7 @@ export default function Dashboard() {
                   <p className="mt-2 truncate text-lg font-semibold">{next.isGroup ? next.group : fullName(next.student)}</p>
                   <p className="flex items-center gap-1.5 text-sm text-ink-200">
                     {next.isGroup ? (
-                      <><Users size={14} /> {next.students.length} alumnos</>
+                      <><Users size={14} /> {next.students.length} {next.students.length === 1 ? 'miembro' : 'miembros'}</>
                     ) : (
                       <>
                         <span className={`h-2 w-2 rounded-full ${instrumentStyle(next.student.instrument).dot}`} />
@@ -151,7 +151,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <span className="btn bg-white/10 text-white hover:bg-white/20 !py-2">{next.isGroup ? 'Ver agenda' : 'Ver ficha'} <ChevronRight size={16} /></span>
+                <span className="btn bg-white/10 text-white hover:bg-white/20 !py-2">{next.isGroup ? 'Ver grupo' : 'Ver ficha'} <ChevronRight size={16} /></span>
                 <Link onClick={(e) => e.stopPropagation()} to={nextUrl} className="btn bg-brass-300 text-ink-900 hover:bg-brass-200 !py-2">
                   <ClipboardPen size={16} /> Registrar
                 </Link>
@@ -164,7 +164,7 @@ export default function Dashboard() {
           {/* Tarjetas resumen */}
           <section className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatCard icon={CalendarCheck} label="Clases hoy" value={todayAppts.length} hint={todayAppts.length ? `${todayAppts.reduce((n, a) => n + a.duration, 0)} min de clase` : 'Día libre'} tone="brass" to="/agenda" delay={40} />
-            <StatCard icon={Users} label="Alumnos" value={activeStudents(state).length} hint={subject} tone="ink" to="/alumnos" delay={80} />
+            <StatCard icon={Users} label="Alumnos" value={activeStudents(state).filter((s) => !s.groupOnly).length} hint={subject} tone="ink" to="/alumnos" delay={80} />
             <StatCard icon={Music2} label="Obras activas" value={activeObras.length} hint="iniciadas, en estudio o consolidadas" tone="violet" to="/repertorio" delay={120} />
             <StatCard icon={ListTodo} label="Tareas pendientes" value={pendingTasks.length} hint={overdue ? `${overdue} vencidas` : 'Al día'} tone={overdue ? 'rose' : 'emerald'} to="/tareas" delay={160} />
           </section>
