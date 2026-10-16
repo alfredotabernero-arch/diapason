@@ -33,10 +33,19 @@ if (-not (Get-Command $npm -ErrorAction SilentlyContinue)) {
 
 Push-Location $Base
 try {
-  if (-not (Test-Path (Join-Path $Base 'node_modules'))) {
-    Write-Host "  Instalando dependencias (solo la primera vez)..." -ForegroundColor Cyan
+  # Dependencias: se instalan la primera vez y otra vez cuando una versión nueva añade alguna
+  # (package.json o package-lock.json más recientes que la última instalación)
+  $marca = Join-Path $Base 'node_modules\.package-lock.json'
+  $instalar = -not (Test-Path $marca)
+  if (-not $instalar) {
+    $ultima = (Get-Item $marca).LastWriteTime
+    $instalar = (Get-Newest @((Join-Path $Base 'package.json'), (Join-Path $Base 'package-lock.json'))) -gt $ultima
+  }
+  if ($instalar) {
+    Write-Host "  Instalando o actualizando dependencias (tarda un poco, solo esta vez)..." -ForegroundColor Cyan
     & $npm install --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'npm install' }
+    if (Test-Path $marca) { (Get-Item $marca).LastWriteTime = Get-Date }
   }
   Write-Host "  Compilando Diapasón..." -ForegroundColor Cyan
   & $npm run build:pc
