@@ -1,0 +1,53 @@
+# Congela una versión de Diapasón para poder volver a ella (rollback).
+# Se lanza al subir una rama «congelar-X.Y.Z» que apunte al commit de esa versión (con «ultima» ya compilada):
+# crea la etiqueta vX.Y.Z y una publicación fija «Diapasón X.Y.Z» con el APK, el instalador de Windows,
+# el manual, la guía, las instrucciones de iPhone/iPad/Mac, las fuentes, la web compilada y el LEEME de rollback.
+name: Congelar versión
+
+on:
+  push:
+    branches: ['congelar-*']
+
+permissions:
+  contents: write
+
+jobs:
+  congelar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Preparar los archivos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V="${GITHUB_REF_NAME#congelar-}"
+          M="${V%.*}"
+          echo "V=$V" >> "$GITHUB_ENV"
+          grep -q "APP_VERSION = '$V'" src/config.js || { echo "src/config.js no es la versión $V"; exit 1; }
+          mkdir sal
+          gh release download ultima -p 'Diapason.apk' -p "Diapason-Setup-$V.exe" -D sal
+          mv sal/Diapason.apk "sal/Diapason-$V.apk"
+          cp "docs/Diapasón - Manual del profesor.pdf" "sal/Diapason - Manual del profesor $M.pdf"
+          cp docs/Diapasón\ -\ Guia\ rapida*.pdf "sal/Diapason - Guia rapida $M.pdf"
+          cp docs/Diapason-iPhone-iPad-Mac.txt sal/
+          cp "docs/rollback/LEEME-rollback-$V.txt" sal/LEEME-rollback.txt
+          git archive --format=zip --prefix="Diapason-$V-fuentes/" -o "sal/Diapason-$V-fuentes.zip" HEAD
+          npm ci
+          npm run build
+          (cd dist && zip -qr "../sal/Diapason-$V-web.zip" .)
+          ls -l sal
+      - name: Etiqueta y publicación fija
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag -f "v$V" "$GITHUB_SHA"
+          git push -f origin "v$V"
+          gh release delete "v$V" --yes || true
+          gh release create "v$V" sal/* --title "Diapasón $V" --latest=false \
+            --notes "Versión fija de Diapasón $V para poder volver a ella (rollback). No se sobrescribe con las versiones nuevas. Instrucciones en LEEME-rollback.txt."

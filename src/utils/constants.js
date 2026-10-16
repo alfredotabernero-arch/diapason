@@ -183,11 +183,8 @@ export const ATTENDANCE_STYLE = {
 export const attended = (lesson) => !lesson.attendance || lesson.attendance === 'Asistió';
 
 // ---------- Calificaciones (1-10 enteros)
-export const TERMS = [
-  { key: 't1', label: '1.er trimestre', short: '1T' },
-  { key: 't2', label: '2.º trimestre', short: '2T' },
-  { key: 't3', label: '3.er trimestre', short: '3T' },
-];
+// Los periodos (trimestres, cuatrimestres…) se configuran en Ajustes: ver periodos.js
+export { TERMS } from './periodos.js';
 
 export function gradeLabel(n) {
   if (n === null || n === undefined || n === '') return '';

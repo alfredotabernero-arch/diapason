@@ -1,7 +1,7 @@
 {
   "name": "diapason",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Diapasón — La agenda inteligente para profesores de música (PC, Android y web sin conexión)",
   "type": "module",
   "scripts": {

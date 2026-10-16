@@ -4,11 +4,12 @@ import GradeSelect from './GradeSelect.jsx';
 import { useStore } from '../../store/StoreContext.jsx';
 import { TERMS, gradeLabel } from '../../utils/constants.js';
 import { courseLabel, proposedFinal } from '../../utils/courses.js';
+import { textoFinal, textoFinalPendiente } from '../../utils/periodos.js';
 import { fullName } from '../../utils/selectors.js';
 
 const EMPTY = { t1: null, t2: null, t3: null, final: null, comments: {} };
 
-/** Calificaciones de un alumno en un curso: tres trimestres + final (propuesta = media) */
+/** Calificaciones de un alumno en un curso: los periodos de Ajustes + final (propuesta = media o la del último) */
 export default function GradeSheet({ student, course, onClose }) {
   const { state, actions } = useStore();
   const [g, setG] = useState(EMPTY);
@@ -53,7 +54,7 @@ export default function GradeSheet({ student, course, onClose }) {
                 <p className="font-semibold text-ink-800">{t.label}</p>
                 <p className="text-xs text-ink-400">
                   {t.key === 'final'
-                    ? g.final !== null ? `${gradeLabel(g.final)} · puesta a mano` : proposal !== null ? `Propuesta: ${proposal} (${gradeLabel(proposal)}), media de los tres trimestres` : 'Se propondrá la media cuando estén los tres trimestres'
+                    ? g.final !== null ? `${gradeLabel(g.final)} · puesta a mano` : proposal !== null ? `Propuesta: ${proposal} (${gradeLabel(proposal)}), ${textoFinal()}` : textoFinalPendiente()
                     : g[t.key] !== null ? gradeLabel(g[t.key]) : 'Sin nota'}
                 </p>
               </div>
@@ -72,7 +73,7 @@ export default function GradeSheet({ student, course, onClose }) {
             />
           </div>
         ))}
-        <p className="text-xs text-ink-300">Escala de 1 a 10: Insuficiente (1–4), Suficiente (5), Bien (6), Notable (7–8), Sobresaliente (9–10). Si dejas la final en «—», cuenta la media propuesta (*).</p>
+        <p className="text-xs text-ink-300">Escala de 1 a 10: Insuficiente (1–4), Suficiente (5), Bien (6), Notable (7–8), Sobresaliente (9–10). Si dejas la final en «—», cuenta la propuesta (*): {textoFinal()}.</p>
       </div>
     </Sheet>
   );

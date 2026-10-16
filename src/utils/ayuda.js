@@ -33,7 +33,7 @@ const AYUDAS = {
   Clase: 'Registra una clase de este alumno.',
   'Añadir material': 'Adjunta una partitura PDF, un audio o un vídeo, o guarda un enlace.',
   'Nueva tarea': 'Apunta lo que el alumno debe estudiar en casa, con prioridad y fecha.',
-  'Editar calificaciones': 'Pon la nota y las observaciones de cada trimestre y la final.',
+  'Editar calificaciones': 'Pon la nota y las observaciones de cada periodo (trimestre, cuatrimestre…) y la final.',
   // listados
   'Hoja de este alumno': 'La hoja de calificaciones en PDF del alumno elegido: logo, notas, observaciones, gráfica y firma.',
   'Todas en un PDF': 'Las hojas de todos los alumnos (o del grupo elegido) en un solo PDF, una por página.',

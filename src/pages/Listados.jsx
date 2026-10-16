@@ -12,6 +12,7 @@ import GradeSheet from '../components/grades/GradeSheet.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { GRADE_ABBR, REPERTOIRE_TYPES, TERMS, attended, gradeLabel, gradeStyle, isInstrumentSubject, itemTitle } from '../utils/constants.js';
 import { courseLabel, courseOf, courseRanges, finalGrade, proposedFinal, shiftCourse } from '../utils/courses.js';
+import { delPeriodo, lastTermKey, nombrePlural, nombreSingular, periodos, termKeys, textoFinal } from '../utils/periodos.js';
 import { WEEKDAYS, addDays, endTime, formatFull, formatShort, formatHours, isoWeekday, monthLabel, startOfMonth, addMonths, todayISO } from '../utils/dates.js';
 import { downloadCSV } from '../utils/csv.js';
 import { deliverFile, isDesktop, isNative } from '../utils/platform.js';
@@ -135,8 +136,8 @@ function GradesList({ students, group }) {
   };
 
   const csv = () => downloadCSV(`Acta-${state.settings.subject}-${course}${fileTag(group)}`,
-    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupo', '1T', '2T', '3T', 'Final', 'Calificación', 'Observaciones'],
-    rows.map(({ s, g, fin }) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.level, s.group || '', g?.t1 ?? '', g?.t2 ?? '', g?.t3 ?? '', fin ?? '', gradeLabel(fin),
+    ['Apellidos', 'Nombre', ...(showInstrument ? ['Especialidad'] : []), 'Nivel', 'Grupo', ...TERMS.map((t) => t.short), 'Final', 'Calificación', 'Observaciones'],
+    rows.map(({ s, g, fin }) => [s.lastName, s.firstName, ...(showInstrument ? [s.instrument] : []), s.level, s.group || '', ...TERMS.map((t) => g?.[t.key] ?? ''), fin ?? '', gradeLabel(fin),
       Object.values(g?.comments || {}).filter(Boolean).join(' | ')]));
 
   return (
@@ -145,7 +146,7 @@ function GradesList({ students, group }) {
         <select className="input !w-auto !py-2 text-sm" value={course} onChange={(e) => setCourse(e.target.value)} aria-label="Curso">
           {[shiftCourse(current, -1), current, shiftCourse(current, 1)].map((c) => <option key={c} value={c}>{courseLabel(c)}</option>)}
         </select>
-        <span className="text-xs text-ink-400">Notas de 1 a 10 · * final propuesta (media)</span>
+        <span className="text-xs text-ink-400">Notas de 1 a 10 · * final propuesta ({periodos().finalMode === 'media' ? 'media' : 'último periodo'})</span>
       </Toolbar>
       {!rows.some((r) => r.g) && state.grades.some((g) => g.course === shiftCourse(course, -1)) && (
         <p className="no-print mb-3 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-800">
@@ -202,7 +203,7 @@ function GradesList({ students, group }) {
         </Table>
       ) : <EmptyState title="No hay alumnos" />}
       <p className="mt-3 text-xs text-ink-400">
-        Las notas se guardan al momento. La final propuesta es la media de los tres trimestres redondeada; elige una nota para fijarla a mano.
+        Las notas se guardan al momento. La final propuesta es {textoFinal()}{periodos().finalMode === 'media' ? ' redondeada' : ''}; elige una nota para fijarla a mano.
       </p>
       {commenting && <GradeSheet student={commenting} course={course} onClose={() => setCommenting(null)} />}
     </>
@@ -504,9 +505,9 @@ function FormerList({ students, group }) {
 
 /* ---------- Hoja de calificaciones del alumno ---------- */
 
-/** Trimestre más reciente con alguna nota puesta en el curso (o el primero) */
+/** Periodo más reciente con alguna nota puesta en el curso (o el primero) */
 function lastTermWithGrades(grades, course) {
-  for (const k of ['t3', 't2', 't1']) if (grades.some((g) => g.course === course && g[k] !== null && g[k] !== undefined)) return k;
+  for (const k of [...termKeys()].reverse()) if (grades.some((g) => g.course === course && g[k] !== null && g[k] !== undefined)) return k;
   return 't1';
 }
 
@@ -514,15 +515,17 @@ function BoletinList({ students, group }) {
   const { state } = useStore();
   const current = courseOf();
   // a principio de curso aún no hay notas: se propone el curso anterior
-  const hayNotas = (c) => state.grades.some((g) => g.course === c && [g.t1, g.t2, g.t3].some((v) => v !== null && v !== undefined));
+  const hayNotas = (c) => state.grades.some((g) => g.course === c && termKeys().some((k) => g[k] !== null && g[k] !== undefined));
   const [course, setCourse] = useState(() => (hayNotas(current) || !hayNotas(shiftCourse(current, -1)) ? current : shiftCourse(current, -1)));
-  const [term, setTerm] = useState(() => lastTermWithGrades(state.grades, hayNotas(current) || !hayNotas(shiftCourse(current, -1)) ? current : shiftCourse(current, -1)));
+  const [term0, setTerm] = useState(() => lastTermWithGrades(state.grades, hayNotas(current) || !hayNotas(shiftCourse(current, -1)) ? current : shiftCourse(current, -1)));
   const [date, setDate] = useState(todayISO());
   const enCurso = students.filter((s) => isActive(s, courseStart(course)) || state.grades.some((g) => g.studentId === s.id && g.course === course));
   const [who, setWho] = useState('');
   const sel = enCurso.find((s) => s.id === who) || enCurso[0];
   const [busy, setBusy] = useState('');
   const gradeOf = (id) => state.grades.find((g) => g.studentId === id && g.course === course) || null;
+  // si en Ajustes se pasa a dos periodos, el tercero deja de existir
+  const term = termKeys().includes(term0) ? term0 : lastTermKey();
   const terms = termsUpTo(term);
   const fileBase = `Calificaciones-${TERMS.find((t) => t.key === term).short}-${course}`;
 
@@ -545,14 +548,14 @@ function BoletinList({ students, group }) {
               {[shiftCourse(current, -1), current].map((c) => <option key={c} value={c}>{courseLabel(c)}</option>)}
             </select>
           </label>
-          <div><span className="label">Trimestre</span>
+          <div><span className="label">{nombreSingular().replace(/^./, (c) => c.toUpperCase())}</span>
             <Segmented value={term} onChange={setTerm} options={TERMS.map((t) => ({ value: t.key, label: t.short }))} />
           </div>
           <label className="block"><span className="label">Fecha de la hoja</span>
             <input type="date" className="input !px-2" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
           </label>
         </div>
-        <p className="text-xs text-ink-400">La hoja del {TERMS.find((t) => t.key === term).label} incluye {terms.length === 1 ? 'ese trimestre' : `los ${terms.length} primeros trimestres`}{term === 't3' ? ' y la calificación final' : ''}, con sus observaciones. El encabezado usa el logo, la escuela y la localidad de Ajustes.</p>
+        <p className="text-xs text-ink-400">La hoja {delPeriodo(term)} incluye {terms.length === 1 ? `ese ${nombreSingular()}` : term === lastTermKey() ? `todos los ${nombrePlural()}` : `los ${terms.length} primeros ${nombrePlural()}`}{term === lastTermKey() ? ' y la calificación final' : ''}, con sus observaciones. El encabezado usa el logo, la escuela y la localidad de Ajustes.</p>
         <div className="flex flex-wrap items-end gap-2">
           <label className="block min-w-[14rem] flex-1"><span className="label">Alumno</span>
             <select className="input" value={sel?.id || ''} onChange={(e) => setWho(e.target.value)}>
@@ -601,7 +604,7 @@ function BoletinList({ students, group }) {
                   </tr>
                 );
               })}
-              {term === 't3' && finalGrade(gradeOf(sel.id)) !== null && (
+              {term === lastTermKey() && finalGrade(gradeOf(sel.id)) !== null && (
                 <tr className="border-b border-ink-800 bg-[#F6F4EF] align-top">
                   <td className="py-2 pr-2 font-semibold">Calificación final</td>
                   <td className="py-2 pr-2"><b className="text-lg">{finalGrade(gradeOf(sel.id))}</b> <i className="text-ink-500">{gradeLabel(finalGrade(gradeOf(sel.id)))}</i></td>

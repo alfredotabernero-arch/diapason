@@ -42,7 +42,7 @@ export default function GradesCard({ student }) {
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className={`grid gap-2 ${TERMS.length === 2 ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {TERMS.map((t) => <Cell key={t.key} label={t.short} value={g?.[t.key] ?? null} />)}
         <Cell label="Final" value={fin} auto={g && (g.final === null || g.final === undefined)} />
       </div>

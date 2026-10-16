@@ -1,0 +1,45 @@
+﻿DIAPASÓN 1.7.0 · iPhone, iPad y Mac
+===================================
+
+Dirección de Diapasón:
+https://alfredotabernero-arch.github.io/diapason/
+
+EN EL iPHONE O EL iPAD (una sola vez)
+1. Abre la dirección anterior en Safari. Tiene que ser Safari, no Chrome
+   ni otro navegador.
+2. Espera a que cargue Diapasón por completo.
+3. Pulsa el botón Compartir (el cuadrado con la flecha hacia arriba,
+   abajo en el iPhone o arriba en el iPad).
+4. Baja en el menú y elige «Añadir a pantalla de inicio».
+5. Deja el nombre «Diapasón» y pulsa «Añadir».
+
+Aparecerá el icono del diapasón en la pantalla de inicio. Ábrelo siempre
+desde ese icono: se ve a pantalla completa, como una app.
+
+EN EL MAC (una sola vez; macOS Sonoma 14 o posterior)
+1. Abre la dirección anterior en Safari.
+2. En la barra de menús: Archivo › Añadir al Dock › Añadir.
+3. Abre Diapasón desde el Dock o desde Aplicaciones: tiene su propia
+   ventana.
+
+SIN CONEXIÓN
+· Después de abrirlo la primera vez, funciona sin Internet.
+· Solo necesita conexión para recibir las versiones nuevas: se actualiza
+  sola al abrirlo con Internet.
+
+TUS DATOS Y CÓMO PASARLOS
+· Se guardan solo en ese dispositivo. No se envían a ningún sitio.
+· Para trabajar en otro (iPad en clase, PC o Mac en casa): Ajustes ›
+  «Enviar datos» en el que dejas y «Recibir datos › Sustituir» en el
+  que coges. Trabaja en un dispositivo cada vez.
+· iPad ⇄ Mac: AirDrop. iPad ⇄ PC con Windows: OneDrive, Google Drive,
+  correo, WhatsApp o un pendrive.
+· Cada fichero enviado (diapason-ipad-….zip) es también una copia de
+  seguridad completa: guarda uno de vez en cuando en Drive o en el correo.
+
+IMPORTANTE
+· No borres los datos de Safari de esa web ni elimines el icono sin haber
+  enviado antes los datos: los datos de Diapasón se borrarían con ellos.
+
+Más detalles en «Diapasón - Manual del profesor 1.7.pdf», capítulos 2 y 3,
+y en «Diapasón - Guia rapida 1.7.pdf».

@@ -1,0 +1,34 @@
+DIAPASÓN 1.6.0 (grupos con ficha propia, correo y ayudas) — FOTO COMPLETA PARA VOLVER ATRÁS (ROLLBACK)
+=========================================================
+
+Esta carpeta guarda la versión 1.6.0 de Diapasón tal y como se entregó, para poder volver a ella
+si una versión posterior no da lo que se necesita.
+
+Contenido
+---------
+  Diapason-1.6.0.apk                           Instalable para Android.
+  Diapason-Setup-1.6.0.exe                     Instalador para Windows (si viene en partes, ejecuta antes «Unir Diapason-Setup-1.6.0.bat»).
+  Diapasón - Manual del profesor 1.6.pdf    Manual completo de esta versión.
+  Diapasón - Guia rapida 1.6.pdf            Guía rápida.
+  Diapason-iPhone-iPad-Mac.txt               Cómo instalarla en iPhone, iPad y Mac.
+  Diapason-1.6.0-fuentes.zip                   Código fuente completo de esta versión.
+  Diapason-1.6.0-web.zip                       La aplicación compilada (lo que se publica en la web).
+
+Tus datos
+---------
+Los datos (alumnos, grupos, clases, notas, repertorio, tareas y ajustes) no van en esta carpeta:
+están en cada aparato. Antes de instalar otra versión haz Ajustes › Enviar datos y guarda el fichero.
+
+Cómo volver a esta versión
+--------------------------
+PC (Windows): instala Diapason-Setup-1.6.0.exe encima de la que tengas. Los datos se quedan donde están.
+
+Móvil Android: Android no deja instalar una versión más antigua encima de una más nueva. Por eso:
+  1. En la versión que tienes: Ajustes › Enviar datos, y guarda el fichero (Drive, correo, WhatsApp…).
+  2. Desinstala Diapasón e instala Diapason-1.6.0.apk.
+  3. En esta versión: Ajustes › Recibir datos › Sustituir, con ese fichero.
+
+iPhone, iPad y Mac: la web siempre es la última versión. Para usar esta, sirve la versión del PC
+(Diapason-Setup-1.6.0.exe) o el apk.
+
+GitHub: repositorio alfredotabernero-arch/diapason, etiqueta v1.6.0, publicación fija «Diapasón 1.6.0».

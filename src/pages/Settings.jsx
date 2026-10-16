@@ -16,7 +16,9 @@ import { canExit } from '../utils/platform.js';
 import { requestExit } from '../utils/backStack.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { DEMO_SUBJECTS, SUBJECT_GROUPS, isInstrumentSubject } from '../utils/constants.js';
-import { DEFAULT_TERMS, courseLabel, courseOf, courseRanges } from '../utils/courses.js';
+import { DEFAULT_TERMS, DEFAULT_TERMS_2, courseLabel, courseOf, courseRanges } from '../utils/courses.js';
+import { PERIOD_KINDS, normalizarPeriodos, textoFinal, vistaPeriodos } from '../utils/periodos.js';
+import Segmented from '../components/ui/Segmented.jsx';
 import { readBackup, restoreAttachments } from '../utils/backup.js';
 import { useEnviarDatos } from '../utils/useTransfer.js';
 import { deviceLabel, deviceName, hasPending, otherKind, receiveWarnings, whenLabel } from '../utils/paso.js';
@@ -42,6 +44,8 @@ export default function Settings() {
   const [courseSheet, setCourseSheet] = useState(false);
   const logoRef = useRef();
   const [terms, setTerms] = useState(state.settings.terms || DEFAULT_TERMS);
+  const [per, setPer] = useState(normalizarPeriodos(state.settings.periods));
+  const vista = vistaPeriodos(per);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(null); // copia leída, a la espera de confirmar
@@ -50,7 +54,15 @@ export default function Settings() {
   const [confirmClear, setConfirmClear] = useState(false);
   const fileRef = useRef();
   const course = courseOf();
-  const ranges = courseRanges(course, terms);
+  const ranges = courseRanges(course, terms, vista.map((t) => t.key));
+  const notasDelTercero = per.count === 2 && state.grades.some((g) => g.t3 !== null && g.t3 !== undefined);
+  const igual = (a, b) => ['t1', 't2'].every((k) => a[k]?.from === b[k]?.from && a[k]?.to === b[k]?.to);
+  /** Cambiar a 2 o 3 periodos: si las fechas eran las de por defecto, se ponen las del otro caso */
+  const cambiarNumero = (n) => {
+    setPer((p) => ({ ...p, count: n }));
+    if (n === 2 && igual(terms, DEFAULT_TERMS)) setTerms((t) => ({ ...t, t1: DEFAULT_TERMS_2.t1, t2: DEFAULT_TERMS_2.t2 }));
+    if (n === 3 && igual(terms, DEFAULT_TERMS_2)) setTerms((t) => ({ ...DEFAULT_TERMS, t3: t.t3 || DEFAULT_TERMS.t3 }));
+  };
   const subjectChanged = profile.subject !== state.settings.subject;
 
   useEffect(() => {
@@ -90,6 +102,7 @@ export default function Settings() {
       actions.replaceState(pending.data);
       setProfile({ teacherName: pending.data.settings?.teacherName || '', school: pending.data.settings?.school || '', locality: pending.data.settings?.locality || '', subject: pending.data.settings?.subject || 'Violonchelo' });
       setTerms(pending.data.settings?.terms || DEFAULT_TERMS);
+      setPer(normalizarPeriodos(pending.data.settings?.periods));
       actions.notify(`Datos recibidos ✓${restored ? ` (${restored} adjuntos)` : ''}`);
       setPending(null);
     } catch (err) {
@@ -136,19 +149,44 @@ export default function Settings() {
 
           <section className="card space-y-3 p-4">
             <div>
-              <h2 className="font-display text-xl">Curso y trimestres</h2>
+              <h2 className="font-display text-xl">Curso y periodos</h2>
               <p className="text-xs text-ink-400">{courseLabel(course)}. Las fechas se aplican cada curso (septiembre a junio) y sirven para las notas y los listados de asistencia.</p>
             </div>
-            {['t1', 't2', 't3'].map((k, i) => (
-              <div key={k} className="grid grid-cols-2 items-end gap-x-2 gap-y-1 sm:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)]">
-                <span className="col-span-2 text-sm font-semibold text-ink-700 sm:col-span-1 sm:pb-3">{i + 1}.{i === 1 ? 'º' : 'er'} trim.</span>
-                <Field label="Desde"><input id={`${k}-from`} type="date" className="input !px-2" value={ranges[k].from} onChange={setTerm(k, 'from')} /></Field>
-                <Field label="Hasta"><input id={`${k}-to`} type="date" className="input !px-2" value={ranges[k].to} onChange={setTerm(k, 'to')} /></Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><span className="label">Número de periodos</span>
+                <Segmented value={String(per.count)} onChange={(v) => cambiarNumero(Number(v))} options={[{ value: '3', label: 'Tres' }, { value: '2', label: 'Dos' }]} />
+              </div>
+              <Field label="Se llaman">
+                <select className="input" value={per.kind} onChange={(e) => setPer((p) => ({ ...p, kind: e.target.value }))}>
+                  {PERIOD_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                </select>
+              </Field>
+            </div>
+            {vista.map((t, i) => (
+              <div key={t.key} className="grid grid-cols-2 items-end gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                {per.kind === 'personalizado' ? (
+                  <Field label={`Periodo ${i + 1}`} className="col-span-2 sm:col-span-1">
+                    <input className="input" value={per.names[i]} placeholder={i === 0 ? 'p. ej. Invierno' : i === 1 ? 'p. ej. Primavera' : 'p. ej. Verano'}
+                      onChange={(e) => { const v = e.target.value; setPer((p) => ({ ...p, names: p.names.map((x, j) => (j === i ? v : x)) })); }} />
+                  </Field>
+                ) : (
+                  <span className="col-span-2 text-sm font-semibold text-ink-700 sm:col-span-1 sm:pb-3">{t.label}</span>
+                )}
+                <Field label="Desde"><input id={`${t.key}-from`} type="date" className="input !px-2" value={ranges[t.key].from} onChange={setTerm(t.key, 'from')} /></Field>
+                <Field label="Hasta"><input id={`${t.key}-to`} type="date" className="input !px-2" value={ranges[t.key].to} onChange={setTerm(t.key, 'to')} /></Field>
               </div>
             ))}
-            <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => { actions.saveSettings({ terms }); actions.notify('Trimestres guardados'); }}>Guardar trimestres</button>
-              <button className="btn-ghost" onClick={() => setTerms(DEFAULT_TERMS)}>Valores por defecto</button>
+            <div><span className="label">Nota final propuesta</span>
+              <Segmented value={per.finalMode} onChange={(v) => setPer((p) => ({ ...p, finalMode: v }))}
+                options={[{ value: 'media', label: 'La media' }, { value: 'ultimo', label: 'La del último' }]} />
+              <p className="mt-1 text-xs text-ink-400">La final se propone sola ({textoFinal(per)}); en cada alumno puedes ponerla a mano.</p>
+            </div>
+            {notasDelTercero && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Hay notas del tercer periodo de otros cursos. No se borran: dejan de verse con dos periodos y vuelven a aparecer si vuelves a tres.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-primary" onClick={() => { actions.saveSettings({ terms, periods: normalizarPeriodos(per) }); actions.notify('Periodos guardados'); }}>Guardar periodos</button>
+              <button className="btn-ghost" onClick={() => { setTerms(per.count === 2 ? { ...DEFAULT_TERMS, t1: DEFAULT_TERMS_2.t1, t2: DEFAULT_TERMS_2.t2 } : DEFAULT_TERMS); }}>Fechas por defecto</button>
             </div>
             <div className="border-t border-ink-100 pt-3">
               <p className="text-sm text-ink-500">Al empezar cada curso, Diapasón propone dar de baja a quien termina su 6.º año y subir de nivel a los demás.</p>
@@ -243,7 +281,7 @@ export default function Settings() {
               <button className="btn-secondary" onClick={() => setConfirmDemo(true)}><RotateCcw size={16} /> Cargar datos de ejemplo</button>
             </div>
             <div className="border-t border-ink-100 pt-3">
-              <p className="text-sm text-ink-500">Cuando quieras trabajar con tus alumnos, borra los datos de ejemplo. Se conservan tu nombre, el centro, la asignatura, los trimestres y la biblioteca de repertorio.</p>
+              <p className="text-sm text-ink-500">Cuando quieras trabajar con tus alumnos, borra los datos de ejemplo. Se conservan tu nombre, el centro, la asignatura, los periodos del curso y la biblioteca de repertorio.</p>
               <button className="btn-danger mt-2" onClick={() => setConfirmClear(true)}><Trash2 size={16} /> Borrar todo y empezar</button>
             </div>
           </section>
@@ -322,7 +360,7 @@ export default function Settings() {
         open={confirmClear}
         onClose={() => setConfirmClear(false)}
         title="Borrar todo y empezar"
-        message="Se borrarán todos los alumnos con sus clases, tareas, notas, calificaciones y material. Se conservan tu nombre, el centro, la asignatura, los trimestres y la biblioteca de repertorio. Si quieres guardar lo que hay, crea antes una copia."
+        message="Se borrarán todos los alumnos con sus clases, tareas, notas, calificaciones y material. Se conservan tu nombre, el centro, la asignatura, los periodos del curso y la biblioteca de repertorio. Si quieres guardar lo que hay, crea antes una copia."
         confirmLabel="Borrar todo"
         onConfirm={() => {
           actions.clearAll();

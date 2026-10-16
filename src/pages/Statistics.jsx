@@ -17,6 +17,7 @@ import {
 import { formatHours } from '../utils/dates.js';
 import { courseLabel, courseOf, finalGrade, shiftCourse } from '../utils/courses.js';
 import { GRADE_ABBR, TERMS, gradeLabel } from '../utils/constants.js';
+import { nombreSingular } from '../utils/periodos.js';
 import {
   byId, fullName, monthlyEvolution, studentAssignments, studentMonthlyResults, studentStats, teacherSessions, weeklyMinutes, weeklySlots,
 } from '../utils/selectors.js';
@@ -385,8 +386,8 @@ function courseSummary(state, course) {
   const sessions = teacherSessions(state, lessons);
   const att = lessons.length ? Math.round((lessons.filter(attended).length / lessons.length) * 100) : null;
   const medias = Object.fromEntries([...TERMS.map((t) => [t.key, mean(grades.map((g) => g[t.key]))]), ['final', mean(grades.map(finalGrade))]]);
-  // nota de referencia de cada alumno: la final o, si aún no hay, la del último trimestre con nota
-  const ref = (g) => finalGrade(g) ?? g?.t3 ?? g?.t2 ?? g?.t1 ?? null;
+  // nota de referencia de cada alumno: la final o, si aún no hay, la del último periodo con nota
+  const ref = (g) => finalGrade(g) ?? [...TERMS].reverse().map((t) => g?.[t.key]).find((v) => v !== null && v !== undefined) ?? null;
   const refs = grades.map(ref).filter((v) => v !== null);
   const reparto = Object.fromEntries(ESCALA.map((l) => [l, refs.filter((v) => gradeLabel(v) === l).length]));
   const niveles = {};
@@ -442,7 +443,7 @@ function CourseStats() {
         <Comparado label="Asistencia" este={A.asistencia} antes={B?.asistencia} unidad=" %" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Nota media por trimestre" subtitle={`${A.conNotas} alumnos con notas · de 1 a 10`}>
+        <ChartCard title={`Nota media por ${nombreSingular()}`} subtitle={`${A.conNotas} alumnos con notas · de 1 a 10`}>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={notas} margin={{ top: 18, right: 4, left: -28, bottom: 0 }}>
@@ -459,7 +460,7 @@ function CourseStats() {
             </ResponsiveContainer>
           </div>
         </ChartCard>
-        <ChartCard title="Calificaciones" subtitle="Nota final, o la del último trimestre si aún no hay final">
+        <ChartCard title="Calificaciones" subtitle={`Nota final, o la del último ${nombreSingular()} si aún no hay final`}>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={reparto} margin={{ top: 18, right: 4, left: -28, bottom: 0 }}>

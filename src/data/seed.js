@@ -4,6 +4,7 @@
 import { LIBRARY } from './library.js';
 import { addDays, startOfWeek, todayISO } from '../utils/dates.js';
 import { DEFAULT_TERMS, courseOf, courseRanges, inTerms } from '../utils/courses.js';
+import { termKeys } from '../utils/periodos.js';
 import { DEFAULT_LEVELS } from '../utils/school.js';
 import { DEMO_SUBJECTS, itemTitle, isInstrumentSubject } from '../utils/constants.js';
 
@@ -362,7 +363,7 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
   }
   lessons.sort((a, b) => (a.date + a.time < b.date + b.time ? 1 : -1));
 
-  // ---------- Calificaciones: trimestres ya terminados del curso actual y del anterior
+  // ---------- Calificaciones: periodos ya terminados del curso actual y del anterior
   const grades = [];
   const current = courseOf(today);
   const startYear = Number(current.slice(0, 4));
@@ -374,14 +375,15 @@ export function buildSeed({ subject = 'Violonchelo', today = todayISO(), setting
       if (st.groupOnly) continue; // los miembros solo de grupo no tienen calificaciones
       const g = { id: `${st.id}_${course}`, studentId: st.id, course, t1: null, t2: null, t3: null, final: null, comments: {} };
       let any = false;
-      ['t1', 't2', 't3'].forEach((t, k) => {
+      termKeys().forEach((t, k) => {
         if (ranges[t].to >= today || st.since > ranges[t].to) return;
         const v = Math.round(abilityOf[st.id] - 0.6 + k * 0.4 + (grand() - 0.5) * 1.6);
         g[t] = Math.max(3, Math.min(10, v));
         any = true;
       });
       if (!any) continue;
-      if (g.t3 !== null && st.id === 'st4') g.final = Math.min(10, Math.round((g.t1 + g.t2 + g.t3) / 3) + 1);
+      const notas = termKeys().map((k) => g[k]);
+      if (notas.every((v) => v !== null) && st.id === 'st4') g.final = Math.min(10, Math.round(notas.reduce((x, y) => x + y, 0) / notas.length) + 1);
       if (st.id === 'st4' && g.final) g.comments.final = 'Se sube la final por la evolución y la audición de fin de curso.';
       if (g.t1 !== null && g.t1 < 5) g.comments.t1 = 'Debe reforzar el estudio diario; se acuerda un plan con la familia.';
       grades.push(g);

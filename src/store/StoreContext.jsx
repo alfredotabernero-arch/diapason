@@ -3,6 +3,7 @@ import { buildSeed } from '../data/seed.js';
 import { isoWeekday, todayISO } from '../utils/dates.js';
 import { uid, STATUS_DEFAULT_PROGRESS, isInstrumentSubject } from '../utils/constants.js';
 import { DEFAULT_TERMS, courseOf } from '../utils/courses.js';
+import { DEFAULT_PERIODS, configurarPeriodos, normalizarPeriodos } from '../utils/periodos.js';
 import { DEFAULT_LEVELS } from '../utils/school.js';
 import { deleteFile } from '../utils/files.js';
 import { readPaso, writePaso } from '../utils/paso.js';
@@ -53,7 +54,11 @@ export function migrate(input) {
   return {
     ...data,
     // 1.5: niveles editables, localidad y logo de la escuela, y curso ya empezado (para el aviso de inicio de curso)
-    settings: { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, levels: DEFAULT_LEVELS, locality: '', schoolLogo: null, courseOpened: courseOf(), showHelp: false, ...data.settings },
+    // 1.7: periodos del curso (tres trimestres por defecto, o dos con el nombre que se quiera) y cómo se propone la final
+    settings: (() => {
+      const st = { terms: DEFAULT_TERMS, lastBackup: null, subject: guess, levels: DEFAULT_LEVELS, locality: '', schoolLogo: null, courseOpened: courseOf(), showHelp: false, periods: DEFAULT_PERIODS, ...data.settings };
+      return { ...st, periods: normalizarPeriodos(st.periods), terms: { ...DEFAULT_TERMS, ...(st.terms || {}) } };
+    })(),
     // 1.5: alta (since), baja (leftAt), alumno permanente, corrección del año en la escuela y nivel de cada curso
     students: (data.students || []).map((s) => ({ groupOnly: false, leftAt: null, permanent: false, yearAdjust: 0, ...s, levelHistory: { [courseOf()]: s.level, ...(s.levelHistory || {}) } })),
     changes: data.changes || [],
@@ -340,9 +345,9 @@ export function StoreProvider({ children, saved = null }) {
       },
       resetDemo(subject) {
         const { settings } = stateRef.current;
-        dispatch({ type: 'replace', state: migrate(buildSeed({ subject: subject || settings.subject, settings: { teacherName: settings.teacherName, school: settings.school, terms: settings.terms, locality: settings.locality, schoolLogo: settings.schoolLogo, levels: settings.levels } })) });
+        dispatch({ type: 'replace', state: migrate(buildSeed({ subject: subject || settings.subject, settings: { teacherName: settings.teacherName, school: settings.school, terms: settings.terms, periods: settings.periods, locality: settings.locality, schoolLogo: settings.schoolLogo, levels: settings.levels } })) });
       },
-      /** Empezar de cero: borra alumnos y todo su seguimiento; conserva perfil, asignatura, trimestres y biblioteca */
+      /** Empezar de cero: borra alumnos y todo su seguimiento; conserva perfil, asignatura, periodos del curso y biblioteca */
       clearAll() {
         const st = stateRef.current;
         for (const m of st.materials) if (m.source === 'file') deleteFile(m.id);
@@ -369,6 +374,8 @@ export function StoreProvider({ children, saved = null }) {
     };
   }, [notify, updatePaso]);
 
+  // los periodos de Ajustes, para todas las pantallas (antes de pintar)
+  configurarPeriodos(state.settings.periods);
   const value = useMemo(() => ({ state, actions, toast, paso }), [state, actions, toast, paso]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

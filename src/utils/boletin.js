@@ -1,10 +1,11 @@
-// Hoja de calificaciones por alumno y trimestre (PDF, A4), en formato académico.
+// Hoja de calificaciones por alumno y periodo (PDF, A4), en formato académico.
 // Se genera en el propio dispositivo con pdf-lib y letra Times: sin Internet y con texto nítido para imprimir.
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { CLAVE_FA, CLAVE_SOL, SELLO } from '../components/brand/clefs.js';
 import { TERMS, gradeLabel } from './constants.js';
 import { courseLabel, finalGrade } from './courses.js';
+import { lastTermKey } from './periodos.js';
 import { MONTHS, fromISO } from './dates.js';
 import { fullName } from './selectors.js';
 import { levelIn, yearLabel } from './school.js';
@@ -18,7 +19,8 @@ const ORO = rgb(0.69, 0.5, 0.19); // #B07F30
 const FONDO = rgb(0.965, 0.957, 0.937);
 const hex = (h) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 
-const ORDINAL = { t1: 'Primer trimestre', t2: 'Segundo trimestre', t3: 'Tercer trimestre' };
+/** «Primer trimestre», «Segundo cuatrimestre», «Invierno»… (según Ajustes) */
+const ordinal = (key) => (TERMS.find((t) => t.key === key) || {}).ordinal || key;
 
 /** «En Madrid, a 18 de diciembre de 2026» */
 export function lugarYFecha(locality, iso) {
@@ -26,7 +28,7 @@ export function lugarYFecha(locality, iso) {
   return `En ${locality?.trim() || '______________'}, a ${d.getDate()} de ${MONTHS[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
 }
 
-/** Trimestres que entran en la hoja del trimestre elegido (el 1.º uno; el 3.º, los tres) */
+/** Periodos que entran en la hoja del periodo elegido (el 1.º uno; el último, todos) */
 export const termsUpTo = (term) => TERMS.slice(0, TERMS.findIndex((t) => t.key === term) + 1);
 
 /**
@@ -35,7 +37,7 @@ export const termsUpTo = (term) => TERMS.slice(0, TERMS.findIndex((t) => t.key =
  */
 export async function buildBoletin(alumnos, { settings, course, term, date }) {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(alumnos.length === 1 ? `Calificaciones de ${fullName(alumnos[0].student)}` : `Calificaciones · ${ORDINAL[term]}`);
+  pdf.setTitle(alumnos.length === 1 ? `Calificaciones de ${fullName(alumnos[0].student)}` : `Calificaciones · ${ordinal(term)}`);
   pdf.setAuthor(settings.teacherName || '');
   pdf.setCreator('Diapasón');
   const F = {
@@ -121,7 +123,7 @@ function drawPage(pdf, F, safe, logo, { student, grade }, { settings, course, te
   y -= 40;
   text('INFORME DE EVALUACIÓN', W / 2, y, { font: F.b, size: 15, align: 'center', spacing: 2.2 });
   y -= 18;
-  text(ORDINAL[term], W / 2, y, { font: F.i, size: 12.5, color: GRIS, align: 'center' });
+  text(ordinal(term), W / 2, y, { font: F.i, size: 12.5, color: GRIS, align: 'center' });
 
   // ---------- datos del alumno
   y -= 30;
@@ -145,8 +147,8 @@ function drawPage(pdf, F, safe, logo, { student, grade }, { settings, course, te
   head('Evaluación', 0); head('Calificación', 1); head('Observaciones', 2);
   y -= 20;
   page.drawLine({ start: { x: M, y }, end: { x: right, y }, thickness: 0.4, color: SUAVE });
-  const rows = termsUpTo(term).map((t) => ({ label: ORDINAL[t.key], value: grade?.[t.key], note: grade?.comments?.[t.key] }));
-  if (term === 't3') {
+  const rows = termsUpTo(term).map((t) => ({ label: ordinal(t.key), value: grade?.[t.key], note: grade?.comments?.[t.key] }));
+  if (term === lastTermKey()) {
     const fin = finalGrade(grade);
     if (fin !== null && fin !== undefined) rows.push({ label: 'Calificación final', value: fin, note: grade?.comments?.final, final: true });
   }
