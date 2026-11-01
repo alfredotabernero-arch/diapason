@@ -1,7 +1,7 @@
 {
   "name": "diapason-escritorio",
   "productName": "Diapasón",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "description": "Diapasón — La agenda inteligente para profesores de música",
   "author": "Alfredo Tabernero Martínez",
@@ -52,7 +52,9 @@
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
+      "perMachine": true,
+      "menuCategory": "Musicae",
+      "include": "instalador.nsh",
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,

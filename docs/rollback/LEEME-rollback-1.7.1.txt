@@ -1,0 +1,33 @@
+DIAPASÓN 1.7.1 (instalación en C:\Program Files\Musicae) — FOTO COMPLETA DE LA VERSIÓN
+=========================================================
+
+Esta carpeta guarda la versión 1.7.1 de Diapasón tal y como se entregó el 1 de noviembre de 2026.
+La versión anterior, 1.7.0, está guardada igual en Versiones\1.7.0 y en GitHub (etiqueta v1.7.0).
+
+Qué cambia en la 1.7.1
+--------------------
+Solo la instalación en Windows: Diapasón se instala ahora para todos los usuarios en
+  C:\Program Files\Musicae\Diapasón
+junto a las demás apps (Atril, Compás, Diapasón, Maestro, Scriptorium y Ensemble), con su acceso en
+menú Inicio › Musicae. Windows pide permiso de administrador al instalar.
+Si Diapasón estaba en otra carpeta (la de usuario, AppData\Local\Programs), el instalador quita esa
+copia solo. TUS DATOS NO SE TOCAN: no están en la carpeta del programa.
+Android, iPhone, iPad y Mac: igual que la 1.7.0.
+
+Contenido
+---------
+  Diapason-1.7.1.apk, Diapason-Setup-1.7.1.exe (si viene en partes, ejecuta antes «Unir Diapason-Setup-1.7.1.bat»),
+  manual y guía (los de la 1.7.0: no cambian), fuentes (.zip), versión web (.zip) y este archivo.
+
+Copias en GitHub
+----------------
+  Repositorio:  https://github.com/alfredotabernero-arch/diapason
+  Etiqueta:     v1.7.1  ·  Publicación fija «Diapasón 1.7.1»
+
+Cómo volver a una versión anterior
+----------------------------------
+ANTES, HAZ UNA COPIA DE TUS DATOS desde Ajustes.
+PC con Windows: las versiones anteriores a la 1.7.1 se instalaban en la carpeta de usuario. Para volver
+a una de ellas, desinstala primero Diapasón (Configuración › Aplicaciones; los datos se conservan) y
+después ejecuta el instalador de la versión elegida. Si no, quedarían dos copias del programa.
+Android, iPhone, iPad y Mac: como se explica en el LEEME de la versión elegida.
